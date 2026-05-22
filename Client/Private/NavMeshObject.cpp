@@ -53,7 +53,7 @@ void CNavMeshObject::Late_Update(_float fTimeDelta)
 	if (0 == m_pNavMeshCom->Get_NumCells())
 		return;
 
-	m_pGameInstance->Add_RenderGroup(RENDERID::NONBLEND, this);
+	m_pGameInstance->Add_RenderGroup(RENDERID::NONLIGHT, this);
 }
 
 HRESULT CNavMeshObject::Render()

@@ -47,6 +47,9 @@ CPlayer::CPlayer(const CPlayer& Prototype)
 
 void CPlayer::Take_Damage(_float fAmount)
 {
+	if (true == m_bInvincible)
+		return;
+
 	if (m_fCurrentHP <= 0.f)
 		return;
 
@@ -1226,6 +1229,9 @@ void CPlayer::Update_WeaponHitboxes()
 void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)
 {
 	if (nullptr == m_pStateMachine)
+		return;
+
+	if (true == m_bInvincible)
 		return;
 
 	m_AttackHitTargets.clear();

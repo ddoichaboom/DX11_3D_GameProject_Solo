@@ -101,6 +101,8 @@ public:
     void                    Set_SkillColliderForwardOffset(_float fOffset) { m_fSkillColliderForwardOffset = fOffset; }
     _bool                   Is_SkillColliderActive() const { return m_bSkillColliderActive; }
 
+    void                    Set_Invincible(_bool bInvincible) { m_bInvincible = bInvincible; }
+    _bool                   Is_Invincible() const { return m_bInvincible; }
 
 private:
     _uint                   m_iState = {};
@@ -212,6 +214,7 @@ private:
     _float                  m_fSkillFCooldownTimer = { 0.f };
 
     _bool                   m_bSkillColliderActive = { false };
+    _bool                   m_bInvincible = { false };
 
     _float                  m_fSkillColliderForwardOffset = { 1.5f };
     _float                  m_fSkillColliderRadius = { 1.5f };

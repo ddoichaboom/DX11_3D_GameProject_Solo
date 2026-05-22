@@ -22,14 +22,32 @@ private:
 	ID3D11Device*				m_pDevice = { nullptr };
 	ID3D11DeviceContext*		m_pContext = { nullptr };
 
+#ifdef _DEBUG
 private:
-	list<class CGameObject*>	m_RenderObjects[ETOUI(RENDERID::END)];				// Render 그룹의 크기는 정해져있으므로 할당
+	HRESULT                     Render_Debug();
+#endif
+
+private:
+	list<class CGameObject*>    m_RenderObjects[ETOUI(RENDERID::END)];
+	class CGameInstance*		m_pGameInstance = { nullptr };
+
+	class CShader*				m_pShader = { nullptr };
+	class CVIBuffer_Rect*		m_pVIBuffer = { nullptr };
+
+	_float4x4					m_WorldMatrix = {};
+	_float4x4					m_ViewMatrix = {};
+	_float4x4					m_ProjMatrix = {};
 
 private:
 	HRESULT						Render_Priority();
 	HRESULT						Render_NonBlend();
 	HRESULT						Render_Blend();
 	HRESULT						Render_UI();
+
+	HRESULT						Render_Lights();
+	HRESULT						Render_Combined();
+	HRESULT						Render_NonLight();
+
 
 public:
 	static CRenderer* Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

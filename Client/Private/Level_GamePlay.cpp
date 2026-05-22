@@ -287,15 +287,50 @@ HRESULT CLevel_GamePlay::Ready_SceneData()
 
 HRESULT CLevel_GamePlay::Ready_Lights()
 {
-	LIGHT_DESC		LightDesc{};
+	LIGHT_DESC LightDesc{};
 
 	LightDesc.eType = LIGHT::DIRECTIONAL;
 	LightDesc.vDiffuse = _float4(1.f, 1.f, 1.f, 1.f);
-	LightDesc.vAmbient = _float4(1.f, 1.f, 1.f, 1.f);
-	LightDesc.vSpecular = _float4(1.f, 1.f, 1.f, 1.f);
-	LightDesc.vDirection = _float4(1.f, -1.f, 1.f, 0.f);
+	LightDesc.vAmbient = _float4(0.20f, 0.22f, 0.25f, 1.f);
+	//LightDesc.vSpecular = _float4(0.7924528f, 0.7924528f, 0.7924528f, 1.f);
+	LightDesc.vSpecular = _float4(0.25f, 0.25f, 0.25f, 1.f);
+
+	// ThroneRoom Fog_ThroneR_01 sunDirection = (55, 260, 0) converted to engine light direction.
+	LightDesc.vDirection = _float4(-0.5648625f, -0.8191520f, -0.0996005f, 0.f);
 
 	if (FAILED(m_pGameInstance->Add_Light(LightDesc)))
+		return E_FAIL;
+
+
+	// юс╫ц 
+	LIGHT_DESC PointLightDesc{};
+
+	PointLightDesc.eType = LIGHT::POINT;
+	_float3 vPointLightPosition = _float3(0.f, 3.f, 0.f);
+
+	if (m_bSceneDataLoaded)
+	{
+		if (const SPAWN_POINT* pPlayerSpawnPoint = CSceneSerializer::Find_FirstSpawnPoint(m_SceneData, SPAWN_TYPE::PLAYER))
+		{
+			vPointLightPosition = pPlayerSpawnPoint->vPosition;
+			vPointLightPosition.y += 3.f;
+			vPointLightPosition.z += 2.f;
+		}
+	}
+
+	PointLightDesc.vPosition = _float4(
+		vPointLightPosition.x,
+		vPointLightPosition.y,
+		vPointLightPosition.z,
+		1.f
+	);	
+	PointLightDesc.fRange = 25.f;
+	PointLightDesc.vDiffuse = _float4(0.85f, 0.75f, 0.55f, 1.f);
+	PointLightDesc.vAmbient = _float4(0.08f, 0.07f, 0.05f, 1.f);
+	//PointLightDesc.vSpecular = _float4(0.8f, 0.7f, 0.55f, 1.f);
+	PointLightDesc.vSpecular = _float4(0.25f, 0.22f, 0.18f, 1.f);
+
+	if (FAILED(m_pGameInstance->Add_Light(PointLightDesc)))
 		return E_FAIL;
 
 	return S_OK;

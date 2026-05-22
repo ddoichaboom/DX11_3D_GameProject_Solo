@@ -325,6 +325,8 @@ void CPanel_Inspector::Render_Model(CGameObject* pObject)
 					"ATTACK_HITBOX_OFF",
 					"DETECT_ON",
 					"DETECT_OFF",
+					"INVINCIBLE_ON",
+					"INVINCIBLE_OFF",
 				};
 
 				_int iRemoveIndex = -1;     // 삭제 요청 캐시 (루프 종료 후 1회 처리)

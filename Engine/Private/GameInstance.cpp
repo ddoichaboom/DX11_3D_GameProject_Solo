@@ -10,6 +10,7 @@
 #include "Font_Manager.h"
 #include "Collision_Manager.h"
 #include "Frustum.h"
+#include "Target_Manager.h"
 
 IMPLEMENT_SINGLETON(CGameInstance)
 
@@ -45,6 +46,10 @@ HRESULT CGameInstance::Initialize_Engine(const ENGINE_DESC& EngineDesc, ID3D11De
 
 	m_pObject_Manager = CObject_Manager::Create(EngineDesc.iNumLevels);
 	if (nullptr == m_pObject_Manager)
+		return E_FAIL;
+
+	m_pTarget_Manager = CTarget_Manager::Create(*ppDevice, *ppContext);
+	if (nullptr == m_pTarget_Manager)
 		return E_FAIL;
 
 	m_pRenderer = CRenderer::Create(*ppDevice, *ppContext);
@@ -257,6 +262,52 @@ void CGameInstance::Add_RenderGroup(RENDERID eGroupID, class CGameObject* pGameO
 }
 #pragma endregion
 
+#pragma region TARGET_MANAGER
+
+HRESULT CGameInstance::Add_RenderTarget(const _wstring& strTargetTag,
+	_uint iWidth, _uint iHeight, DXGI_FORMAT ePixelFormat, const _float4& vClearColor)
+{
+	return m_pTarget_Manager->Add_RenderTarget(strTargetTag, iWidth, iHeight, ePixelFormat, vClearColor);
+}
+
+HRESULT CGameInstance::Add_MRT(const _wstring& strMRTTag, const _wstring& strTargetTag)
+{
+	return m_pTarget_Manager->Add_MRT(strMRTTag, strTargetTag);
+}
+
+HRESULT CGameInstance::Begin_MRT(const _wstring& strMRTTag, ID3D11DepthStencilView* pDSV)
+{
+	return m_pTarget_Manager->Begin_MRT(strMRTTag, pDSV);
+}
+
+HRESULT CGameInstance::End_MRT()
+{
+	return m_pTarget_Manager->End_MRT();
+}
+
+HRESULT CGameInstance::Bind_RT_ShaderResource(const _wstring& strTargetTag, CShader* pShader, const _char* pConstantName)
+{
+	return m_pTarget_Manager->Bind_ShaderResource(strTargetTag, pShader, pConstantName);
+}
+
+#ifdef _DEBUG
+HRESULT CGameInstance::Ready_RT_Debug(const _wstring& strTargetTag, _float fX, _float fY, _float fSizeX, _float fSizeY)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->Ready_Debug(strTargetTag, fX, fY, fSizeX, fSizeY);
+}
+HRESULT CGameInstance::Render_RT_Debug(const _wstring& strMRTTag, CShader* pShader, CVIBuffer_Rect* pVIBuffer)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->Render_Debug(strMRTTag, pShader, pVIBuffer);
+}
+#endif
+#pragma endregion
+
 #pragma region COLLISION_MANAGER
 void CGameInstance::Add_Collider(COLLISION_GROUP eGroup, CCollider* pCollider)
 {
@@ -391,6 +442,7 @@ _bool		CGameInstance::Is_CursorLocked() const
 #pragma endregion
 
 #pragma region LIGHT_MANAGER
+
 const LIGHT_DESC* CGameInstance::Get_LightDesc(_uint iIndex)
 {
 	return m_pLight_Manager->Get_LightDesc(iIndex);
@@ -399,6 +451,11 @@ const LIGHT_DESC* CGameInstance::Get_LightDesc(_uint iIndex)
 HRESULT	CGameInstance::Add_Light(const LIGHT_DESC& LightDesc)
 {
 	return m_pLight_Manager->Add_Light(LightDesc);
+}
+
+HRESULT CGameInstance::Render_Light(CShader* pShader, CVIBuffer_Rect* pVIBuffer)
+{
+	return m_pLight_Manager->Render(pShader, pVIBuffer);
 }
 
 #pragma endregion
@@ -438,6 +495,7 @@ void CGameInstance::Release_Engine()
 	Safe_Release(m_pFrustum);
 	Safe_Release(m_pPipeLine);
 	Safe_Release(m_pRenderer);
+	Safe_Release(m_pTarget_Manager);
 	Safe_Release(m_pObject_Manager);
 	Safe_Release(m_pPrototype_Manager);
 	Safe_Release(m_pLevel_Manager);

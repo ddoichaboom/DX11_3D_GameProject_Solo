@@ -403,6 +403,9 @@
     <FxCompile Include="..\..\Resources\ShaderFiles\Shader_VtxPosColor.hlsl">
       <Filter>98. ShaderFiles</Filter>
     </FxCompile>
+    <FxCompile Include="..\..\Resources\ShaderFiles\Shader_Deferred.hlsl">
+      <Filter>98. ShaderFiles</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\Resources\ShaderFiles\Shader_Defines.hlsli">

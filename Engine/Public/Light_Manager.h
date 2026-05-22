@@ -13,6 +13,7 @@ private:
 public:
 	const LIGHT_DESC*			Get_LightDesc(_uint iIndex);
 	HRESULT						Add_Light(const LIGHT_DESC& LightDesc);
+	HRESULT                     Render(class CShader* pShader, class CVIBuffer_Rect* pVIBuffer);
 
 private:
 	ID3D11Device*				m_pDevice = { nullptr };

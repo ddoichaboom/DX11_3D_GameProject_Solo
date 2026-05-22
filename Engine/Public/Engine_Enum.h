@@ -9,7 +9,9 @@ namespace Engine
 
 	enum class TRANSFORMTYPE { TRANSFORM_2D, TRANSFORM_3D, END };
 
-	enum class RENDERID { PRIORITY, NONBLEND, BLEND, UI, END };
+	enum class RENDERID { PRIORITY, NONBLEND, NONLIGHT, BLEND, UI, END };
+
+    enum class DEFERRED { DEBUG, DIRECTIONAL, POINT, COMBINED, END };
 
 	enum class STATE { RIGHT, UP, LOOK, POSITION, END };
 
@@ -69,6 +71,8 @@ namespace Engine
         ATTACK_HITBOX_OFF,
         DETECT_ON,
         DETECT_OFF,
+        INVINCIBLE_ON,
+        INVINCIBLE_OFF,
         END
     };
 

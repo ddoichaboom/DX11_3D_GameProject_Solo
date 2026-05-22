@@ -573,6 +573,18 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
             }
             break;
         }
+        case ANIM_NOTIFY_TYPE::INVINCIBLE_ON:
+        {
+            if (nullptr != m_pOwner)
+                m_pOwner->Set_Invincible(true);
+            break;
+        }
+        case ANIM_NOTIFY_TYPE::INVINCIBLE_OFF:
+        {
+            if (nullptr != m_pOwner)
+                m_pOwner->Set_Invincible(false);
+            break;
+        }
 
         case ANIM_NOTIFY_TYPE::NONE:
         case ANIM_NOTIFY_TYPE::END:

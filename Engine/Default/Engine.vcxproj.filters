@@ -196,6 +196,12 @@
     <Filter Include="08. PipeLine\Frustum">
       <UniqueIdentifier>{663017e1-c41b-4f78-b233-83c23756047a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="14. RenderTargets">
+      <UniqueIdentifier>{afb3b33f-c81e-4b45-8ec6-759e5c2ba7fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="14. RenderTargets\Manager">
+      <UniqueIdentifier>{1b0c4551-989e-4bb7-bbb8-10395cf1c47d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Private\Base.cpp">
@@ -362,6 +368,12 @@
     </ClCompile>
     <ClCompile Include="..\Private\Frustum.cpp">
       <Filter>08. PipeLine\Frustum</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\RenderTarget.cpp">
+      <Filter>14. RenderTargets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Target_Manager.cpp">
+      <Filter>14. RenderTargets\Manager</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -553,6 +565,12 @@
     </ClInclude>
     <ClInclude Include="..\Public\Frustum.h">
       <Filter>08. PipeLine\Frustum</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\RenderTarget.h">
+      <Filter>14. RenderTargets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Target_Manager.h">
+      <Filter>14. RenderTargets\Manager</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
