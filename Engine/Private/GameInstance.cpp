@@ -9,6 +9,7 @@
 #include "Light_Manager.h"
 #include "Font_Manager.h"
 #include "Collision_Manager.h"
+#include "Frustum.h"
 
 IMPLEMENT_SINGLETON(CGameInstance)
 
@@ -70,6 +71,10 @@ HRESULT CGameInstance::Initialize_Engine(const ENGINE_DESC& EngineDesc, ID3D11De
 	if (nullptr == m_pCollision_Manager)
 		return E_FAIL;
 
+	m_pFrustum = CFrustum::Create();
+	if (nullptr == m_pFrustum)
+		return E_FAIL;
+
 	return S_OK;
 }
 
@@ -82,7 +87,10 @@ void CGameInstance::Update_Engine(_float fTimeDelta)
 
 	m_pPipeLine->Update();								// (4) 역행렬 계산, 카메라 위치 추출
 
-	m_pObject_Manager->Late_Update(fTimeDelta);			// (5) 렌더 등록
+	m_pFrustum->Update(m_pPipeLine->Get_Transform_Inverse(D3DTS::VIEW),
+						m_pPipeLine->Get_Transform_Inverse(D3DTS::PROJ));		// (5) 절두체 갱신 
+
+	m_pObject_Manager->Late_Update(fTimeDelta);			// (6) 렌더 등록
 
 	m_pCollision_Manager->Update();
 
@@ -297,6 +305,30 @@ void			CGameInstance::Set_Transform(D3DTS eState, _fmatrix StateMatrix)
 	m_pPipeLine->Set_Transform(eState, StateMatrix);
 }
 
+void CGameInstance::Transform_Frustum_ToLocalSpace(_fmatrix WorldMatrix)
+{
+	if (nullptr == m_pFrustum)
+		return;
+
+	m_pFrustum->Transform_ToLocalSpace(WorldMatrix);
+}
+
+_bool CGameInstance::Is_In_Frustum_WorldSpace(_fvector vWorldPos, _float fRange) const
+{
+	if (nullptr == m_pFrustum)
+		return true;
+
+	return m_pFrustum->Is_InWorldSpace(vWorldPos, fRange);
+}
+
+_bool CGameInstance::Is_In_Frustum_LocalSpace(_fvector vLocalPos, _float fRange) const
+{
+	if (nullptr == m_pFrustum)
+		return true;
+
+	return m_pFrustum->Is_InLocalSpace(vLocalPos, fRange);
+}
+
 #pragma endregion
 
 #pragma region INPUT_DEVICE
@@ -403,6 +435,7 @@ void CGameInstance::Release_Engine()
 	Safe_Release(m_pFont_Manager);
 	Safe_Release(m_pLight_Manager);
 	Safe_Release(m_pInput_Device);
+	Safe_Release(m_pFrustum);
 	Safe_Release(m_pPipeLine);
 	Safe_Release(m_pRenderer);
 	Safe_Release(m_pObject_Manager);

@@ -52,6 +52,7 @@ public:
 	ANIM_NOTIFY                     Get_Notify(_uint iAnimIndex, _uint iNotifyIndex) const;
 
 	_bool							Get_LocalAABB(_float3& vOutCenter, _float3& vOutHalfExtent) const;
+	_bool							Get_MeshLocalAABB(_uint iMeshIndex, _float3& vOutCenter, _float3& vOutHalfExtent) const;
 
 
 #pragma endregion

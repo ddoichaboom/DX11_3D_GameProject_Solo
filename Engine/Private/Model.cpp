@@ -670,6 +670,17 @@ _bool CModel::Get_LocalAABB(_float3& vOutCenter, _float3& vOutHalfExtent) const
 	return true;
 }
 
+_bool CModel::Get_MeshLocalAABB(_uint iMeshIndex, _float3& vOutCenter, _float3& vOutHalfExtent) const
+{
+	if (iMeshIndex >= m_iNumMeshes)
+		return false;
+
+	if (nullptr == m_Meshes[iMeshIndex])
+		return false;
+
+	return m_Meshes[iMeshIndex]->Get_LocalAABB(vOutCenter, vOutHalfExtent);
+}
+
 void CModel::Set_NotifyTick(_uint iAnimIndex, _uint iNotifyIndex, _float fTick)
 {
 	if (iAnimIndex >= m_iNumAnimations)

@@ -40,6 +40,8 @@ public:
 
     _bool               Intersect(CCollider* pOther);
 
+    void                Set_Radius(_float fRadius);
+
 #ifdef _DEBUG
     HRESULT             Render(PrimitiveBatch<VertexPositionColor>* pBatch);
 #endif

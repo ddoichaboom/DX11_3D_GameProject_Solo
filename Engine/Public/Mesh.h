@@ -12,6 +12,8 @@ private:
 	virtual ~CMesh() = default;
 
 public:
+	_bool					Get_LocalAABB(_float3& vOutCenter, _float3& vOutHalfExtent) const;
+
 	_uint					Get_MaterialIndex() const { return m_iMaterialIndex; }
 	const _char*			Get_Name() const {	return m_szName; }
 
@@ -33,6 +35,8 @@ private:
 	HRESULT					Ready_NonAnimMesh(const MESH_DESC& Desc);
 	HRESULT					Ready_AnimMesh(const MESH_DESC& Desc);
 
+	void					Build_LocalAABB();
+
 private:
 	_char					m_szName[MAX_PATH] = {};
 	_uint					m_iMaterialIndex = {};
@@ -41,6 +45,10 @@ private:
 	vector<_uint>			m_BoneIndices = {};
 	vector<_float4x4>		m_OffsetMatrices;
 	_float4x4				m_BoneMatrices[g_iNumMeshBones] = {};
+
+	_float3					m_vLocalAABBCenter = {};
+	_float3					m_vLocalAABBHalfExtent = {};
+	_bool					m_bLocalAABBValid = { false };
 
 	// CPU 스키닝 - PICK_DATA 변환해서 PICKING 하기 위함 
 	vector<XMUINT4>			m_PickBlendIndices;

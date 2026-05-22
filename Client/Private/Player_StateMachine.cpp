@@ -6,6 +6,21 @@ CPlayer_StateMachine::CPlayer_StateMachine()
 {
 }
 
+void CPlayer_StateMachine::Get_SkillParams(_uint iStateKey, _float& fOutRadius, _float& fOutDamage, _float& fOutForwardOffset) const
+{
+    auto it = m_SkillParams.find(iStateKey);
+    if (m_SkillParams.end() == it)
+    {
+        fOutRadius = 0.f;
+        fOutDamage = 0.f;
+        fOutForwardOffset = 0.f;
+        return;
+    }
+    fOutRadius = it->second.fRadius;
+    fOutDamage = it->second.fDamage;
+    fOutForwardOffset = it->second.fForwardOffset;
+}
+
 HRESULT CPlayer_StateMachine::Initialize(const CHARACTER_ANIM_TABLE_DESC* pAnimTable)
 {
     if (nullptr == pAnimTable)
@@ -25,6 +40,15 @@ HRESULT CPlayer_StateMachine::Initialize(const CHARACTER_ANIM_TABLE_DESC* pAnimT
 
         if (FAILED(Register_Policy(DstPolicy)))
             return E_FAIL;
+
+        if (SrcPolicy.fSphereRadius > 0.f || SrcPolicy.fSphereDamage > 0.f)
+        {
+            SKILL_PARAMS p{};
+            p.fRadius = SrcPolicy.fSphereRadius;
+            p.fDamage = SrcPolicy.fSphereDamage;
+            p.fForwardOffset = SrcPolicy.fSphereForwardOffset;
+            m_SkillParams[DstPolicy.iAction] = p;
+        }
     }
 
     // DASH/BACK_DASH 중 GUARD 진입 금지
@@ -228,7 +252,6 @@ void CPlayer_StateMachine::Update_Skills(const PLAYER_INTENT_FRAME& Intent)
     {
         const EQUIPPED_WEAPON_ID eEquipped = m_pOwner->Get_EquippedWeapon();
 
-        // NONE 장착 시는 스킬 발동 안 함
         if (EQUIPPED_WEAPON_ID::NONE == eEquipped)
             return;
 
@@ -236,6 +259,10 @@ void CPlayer_StateMachine::Update_Skills(const PLAYER_INTENT_FRAME& Intent)
             (EQUIPPED_WEAPON_ID::KNIGHT_KILLER == eEquipped)
             ? CHARACTER_ACTION_STEP::START
             : CHARACTER_ACTION_STEP::NONE;
+
+        // R6-D: Kasaka 텔레포트 — Try_Action 직전 (타깃 없으면 무동작, 액션은 계속 진입)
+        if (EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eEquipped)
+            m_pOwner->Try_Teleport(12.f, 120.f);
 
         if (true == Try_Action(CHARACTER_ACTION::SKILL_F, eStep))
         {
@@ -416,15 +443,95 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
             m_bComboWindowOpen = false;
             break;
         case ANIM_NOTIFY_TYPE::ATTACK_HITBOX_ON:
+        {
+            if (nullptr != m_pOwner)
+            {
+                const CHARACTER_ACTION      eCur = Get_CurrentCharacterAction();
+                const CHARACTER_ACTION_STEP eCurStep = Get_CurrentCharacterStep();
+                const EQUIPPED_WEAPON_ID    eEq = m_pOwner->Get_EquippedWeapon();
+
+                const _bool bKK_Loop = (CHARACTER_ACTION::SKILL_F == eCur
+                    && CHARACTER_ACTION_STEP::LOOP == eCurStep
+                    && EQUIPPED_WEAPON_ID::KNIGHT_KILLER == eEq);
+
+                const _bool bKasaka_Slam = (CHARACTER_ACTION::SKILL_F == eCur
+                    && CHARACTER_ACTION_STEP::NONE == eCurStep
+                    && EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eEq);
+
+                if (true == bKK_Loop || true == bKasaka_Slam)
+                {
+                    const _uint iCur = Make_PlayerStateKey(eCur, eCurStep);
+
+                    if (iCur != m_iLastSkillSphereStateKey)
+                    {
+                        m_iLastSkillSphereStateKey = iCur;
+                        m_iSkillSphereOnIndex = 0;
+                    }
+
+                    _float r = 0.f, d = 0.f, o = 0.f;
+
+                    if (true == bKasaka_Slam && m_iSkillSphereOnIndex >= 1)
+                    {
+                        constexpr _float KASAKA_PHASE2_RADIUS = 3.0f;
+                        constexpr _float KASAKA_PHASE2_DAMAGE = 30.f;
+                        constexpr _float KASAKA_PHASE2_OFFSET = 0.0f;
+
+                        r = KASAKA_PHASE2_RADIUS;
+                        d = KASAKA_PHASE2_DAMAGE;
+                        o = KASAKA_PHASE2_OFFSET;
+                    }
+                    else
+                    {
+                        Get_SkillParams(iCur, r, d, o);
+                    }
+
+                    ++m_iSkillSphereOnIndex;
+
+                    if (r > 0.f)
+                    {
+                        m_pOwner->Set_SkillColliderRadius(r);
+                        m_pOwner->Set_SkillColliderDamage(d);
+                        m_pOwner->Set_SkillColliderForwardOffset(o);
+                        m_pOwner->Enable_SkillCollider(true);
+                    }
+                    break;   
+                }
+            }
+
             ++m_iAttackHitboxWindowSerial;
             m_bAttackHitboxActive = true;
-            break;
+            break;   
+        }
         case ANIM_NOTIFY_TYPE::ATTACK_HITBOX_OFF:
+        {
+            if (nullptr != m_pOwner)
+            {
+                const CHARACTER_ACTION      eCur = Get_CurrentCharacterAction();
+                const CHARACTER_ACTION_STEP eCurStep = Get_CurrentCharacterStep();
+                const EQUIPPED_WEAPON_ID    eEq = m_pOwner->Get_EquippedWeapon();
+
+                const _bool bKK_Loop = (CHARACTER_ACTION::SKILL_F == eCur
+                    && CHARACTER_ACTION_STEP::LOOP == eCurStep
+                    && EQUIPPED_WEAPON_ID::KNIGHT_KILLER == eEq);
+
+                const _bool bKasaka_Slam = (CHARACTER_ACTION::SKILL_F == eCur
+                    && CHARACTER_ACTION_STEP::NONE == eCurStep
+                    && EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eEq);
+
+                if (true == bKK_Loop || true == bKasaka_Slam)
+                {
+                    m_pOwner->Enable_SkillCollider(false);
+                    break;
+                }
+            }
+
             m_bAttackHitboxActive = false;
             break;
+        }
         case ANIM_NOTIFY_TYPE::DETECT_ON:
             {
-                if (nullptr == m_pOwner) break;
+                if (nullptr == m_pOwner) 
+                    break;
 
                 const CHARACTER_ACTION      eCur = Get_CurrentCharacterAction();
                 const CHARACTER_ACTION_STEP eCurStep = Get_CurrentCharacterStep();
@@ -434,14 +541,25 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                     && CHARACTER_ACTION_STEP::START == eCurStep
                     && EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_pOwner->Get_EquippedWeapon())
                 {
-                    m_pOwner->Enable_SkillCollider(true);
+                    const _uint iCur = Make_PlayerStateKey(Get_CurrentCharacterAction(), Get_CurrentCharacterStep());
+                    _float fRadius = 0.f, fDamage = 0.f, fOffset = 0.f;
+                    Get_SkillParams(iCur, fRadius, fDamage, fOffset);
+                    if (fRadius > 0.f)
+                    {
+                        m_pOwner->Set_SkillColliderRadius(fRadius);
+                        m_pOwner->Set_SkillColliderDamage(fDamage);
+                        m_pOwner->Set_SkillColliderForwardOffset(fOffset);
+                        m_pOwner->Enable_SkillCollider(true);
+                    }
+                    break;
                 }
                 // 향후 다른 스킬은 여기에 분기 추가
                 break;
             }
         case ANIM_NOTIFY_TYPE::DETECT_OFF:
         {
-            if (nullptr == m_pOwner) break;
+            if (nullptr == m_pOwner)
+                break;
 
             const CHARACTER_ACTION      eCur = Get_CurrentCharacterAction();
             const CHARACTER_ACTION_STEP eCurStep = Get_CurrentCharacterStep();
@@ -451,6 +569,7 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                 && EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_pOwner->Get_EquippedWeapon())
             {
                 m_pOwner->Enable_SkillCollider(false);
+                break;
             }
             break;
         }

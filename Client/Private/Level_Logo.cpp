@@ -47,10 +47,6 @@ void CLevel_Logo::Update(_float fTimeDelta)
 
 HRESULT CLevel_Logo::Render()
 {
-#ifdef _DEBUG
-	SetWindowText(m_pGameInstance->Get_hWnd(), TEXT("로고 레벨 입니다."));
-#endif
-
 	return S_OK;
 }
 

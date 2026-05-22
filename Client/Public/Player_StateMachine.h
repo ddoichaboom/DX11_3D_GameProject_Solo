@@ -40,6 +40,8 @@ public:
 	_bool							Is_AttackHitboxActive() const { return m_bAttackHitboxActive; }
 	_uint							Get_AttackHitboxWindowSerial() const { return m_iAttackHitboxWindowSerial; }
 
+	void							Get_SkillParams(_uint iStateKey, _float& fOutRadius, _float& fOutDamage, _float& fOutForwardOffset) const;
+
 public:
 	HRESULT							Initialize(const CHARACTER_ANIM_TABLE_DESC* pAnimTable);
 
@@ -66,6 +68,12 @@ private:
 	CPlayer*						m_pOwner = { nullptr };
 
 private:
+	struct SKILL_PARAMS { 
+		_float						fRadius = {};
+		_float						fDamage = {};
+		_float						fForwardOffset = {};
+	};
+
 	_bool							m_bLastHasMoveIntent = { false };
 	_bool							m_bComboWindowOpen = { false };
 	_int							m_iComboStep = { 0 };
@@ -74,6 +82,11 @@ private:
 	_uint                           m_iAttackHitboxWindowSerial = { 0 };
 	_float							m_fDownRecoverTimer = { 0.f };
 	static constexpr _float			DOWN_RECOVER_DELAY = { 0.5f };
+
+	unordered_map<_uint, SKILL_PARAMS>  m_SkillParams;
+
+	_uint							m_iSkillSphereOnIndex = { 0 };
+	_uint							m_iLastSkillSphereStateKey = { 0 };
 
 
 

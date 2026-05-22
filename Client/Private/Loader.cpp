@@ -85,7 +85,7 @@ HRESULT CLoader::Loading()
 #ifdef _DEBUG
 void CLoader::Show()
 {
-	SetWindowText(m_pGameInstance->Get_hWnd(), m_szLoadingText);
+	//SetWindowText(m_pGameInstance->Get_hWnd(), m_szLoadingText);
 }
 #endif
 

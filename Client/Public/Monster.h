@@ -141,7 +141,7 @@ protected:
 	_int						m_iLevel = { 1 };
 	_wstring					m_strDisplayName; 
 
-	_float						m_fCrashDurationMax = { 15.f };
+	_float						m_fCrashDurationMax = { 10.f };
 	_float						m_fCrashDurationCurrent = { 0.f };
 
 	set<CGameObject*>			m_AttackHitTargets;

@@ -45,6 +45,8 @@ public:
     void                    Take_Damage(_float fAmount);
     _bool                   Try_GetDashHUDWorldPosition(_float3* pOutPosition) const;
 
+    _bool                   Try_Teleport(_float fSearchRadius, _float fConeAngleDegrees);
+
 public:
     virtual HRESULT         Initialize_Prototype() override;
     virtual HRESULT         Initialize(void* pArg) override;
@@ -56,8 +58,8 @@ public:
 public:
     void                    Apply_RootMotion(const _float3& vLocalDelta);
     void                    Handle_ActionTransition(CHARACTER_ACTION eFromAction, CHARACTER_ACTION_STEP eFromStep,
-        CHARACTER_ACTION eToAction, CHARACTER_ACTION_STEP eToStep,
-        _bool bInitial);
+                                                    CHARACTER_ACTION eToAction, CHARACTER_ACTION_STEP eToStep,
+                                                    _bool bInitial);
     void                    Face_DirectionImmediately(const _float3& vDirWorld);
     CHARACTER_ACTION        Pick_RunEndByFoot() const;
     CHARACTER_ACTION        Pick_RunFastVariant(const _float3& vMoveDirWorld, CHARACTER_ACTION eCurrent) const;
@@ -93,6 +95,10 @@ public:
     void                    Enter_FloatReaction(CHARACTER_ACTION eFloatAction);
 
     void                    Enable_SkillCollider(_bool bEnable);
+    void                    Set_SkillColliderRadius(_float fRadius);
+    void                    Set_SkillColliderDamage(_float fDamage) { m_fSkillColliderDamage = fDamage; }
+    _float                  Get_SkillColliderDamage() const { return m_fSkillColliderDamage; }
+    void                    Set_SkillColliderForwardOffset(_float fOffset) { m_fSkillColliderForwardOffset = fOffset; }
     _bool                   Is_SkillColliderActive() const { return m_bSkillColliderActive; }
 
 
@@ -107,6 +113,7 @@ private:
     CCollider*              m_pSkillCollider = { nullptr };
 
     set<pair<class CWeapon*, CGameObject*>>       m_AttackHitTargets;
+    set<CGameObject*>       m_SkillHitTargets;
 
 private:
     HRESULT                 Ready_PartObjects();
@@ -123,20 +130,20 @@ private:
     BODY_BLOCK_POLICY       Get_BodyBlockPolicy() const;
     _float                  Get_MonsterBodyBlockRadius(const CMonster* pMonster) const;
     void                    Add_BodyBlockCandidateCell(_int* pCandidateCells,
-        _uint* pNumCandidateCells,
-        _int iCellIndex) const;
+                                                        _uint* pNumCandidateCells,
+                                                        _int iCellIndex) const;
     _bool                   Contains_BodyBlockCandidateCell(const _int* pCandidateCells,
-        _uint iNumCandidateCells,
-        _int iCellIndex) const;
+                                                            _uint iNumCandidateCells,
+                                                            _int iCellIndex) const;
     void                    Collect_BodyBlockCandidateCells(const CNavMesh* pNavMesh,
-        _int iCellIndex,
-        _int* pCandidateCells,
-        _uint* pNumCandidateCells) const;
+                                                                _int iCellIndex,
+                                                                _int* pCandidateCells,
+                                                                _uint* pNumCandidateCells) const;
     _bool                   Clip_SegmentByCircleXZ(const _float3& vCurrentPosition,
-        const _float3& vCandidatePosition,
-        const _float3& vCircleCenter,
-        _float fRadius,
-        _float* pOutT) const;
+                                                    const _float3& vCandidatePosition,
+                                                    const _float3& vCircleCenter,
+                                                    _float fRadius,
+                                                    _float* pOutT) const;
 
     void                    Gather_RawInput(PLAYER_RAW_INPUT_FRAME* pOutRaw);
     void                    Apply_MoveIntent(const PLAYER_INTENT_FRAME& Intent, _float fTimeDelta);
@@ -149,7 +156,7 @@ private:
 
     void                    On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther);
 
-    const WEAPON_INFO* Find_WeaponInfo(EQUIPPED_WEAPON_ID eId);
+    const WEAPON_INFO*      Find_WeaponInfo(EQUIPPED_WEAPON_ID eId);
 
     _bool                   Is_AerialAction() const;
 
@@ -158,10 +165,14 @@ private:
     void                    On_SkillColliderHit(CCollider* pOther);
 
     _bool                   Is_SkillF_KnightKiller_Start() const;
+    _bool                   Is_SkillF_KnightKiller_Loop() const;
+
+    class CMonster*         Find_Target(_float fSearchRadius, _float fConeAngleDegrees) const;
+    void                    Teleport_BehindTarget(class CMonster* pTarget);
 
 
 private:
-    CNavigationAgent* m_pNavigationAgent = { nullptr };
+    CNavigationAgent*       m_pNavigationAgent = { nullptr };
 
 private:
     _float                  m_fIdleThreshold = { 3.f };
@@ -201,10 +212,16 @@ private:
     _float                  m_fSkillFCooldownTimer = { 0.f };
 
     _bool                   m_bSkillColliderActive = { false };
-    _float                  m_fSkillColliderForwardOffset = { 1.2f };
-    _float                  m_fSkillColliderRadius = { 0.9f };
+
+    _float                  m_fSkillColliderForwardOffset = { 1.5f };
+    _float                  m_fSkillColliderRadius = { 1.5f };
+    _float                  m_fSkillColliderDamage = { 10.f };
 
     _float                  m_fSkillFStartTravelScale = { 1.6f };
+
+    _float                  m_fKasakaPhase2Radius = { 3.0f };
+    _float                  m_fKasakaPhase2Damage = { 30.f };
+    _float                  m_fKasakaPhase2ForwardOffset = { 0.0f };
 
 public:
     static CPlayer*         Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

@@ -93,6 +93,14 @@ _bool CCollider::Intersect(CCollider* pOther)
     return m_pBounding->Intersect(pOther->m_eBoundingType, pOther->m_pBounding);
 }
 
+void CCollider::Set_Radius(_float fRadius)
+{
+    if (COLLIDER::SPHERE != m_eBoundingType || nullptr == m_pBounding)
+        return;
+
+    static_cast<CBounding_Sphere*>(m_pBounding)->Set_Radius(fRadius);
+}
+
 #ifdef _DEBUG
 HRESULT CCollider::Render(PrimitiveBatch<VertexPositionColor>* pBatch)
 {

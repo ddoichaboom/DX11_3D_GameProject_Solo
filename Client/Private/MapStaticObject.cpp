@@ -57,10 +57,26 @@ HRESULT CMapStaticObject::Render()
 
 	_uint iNumMeshes = m_pModelCom->Get_NumMeshes();
 
+	m_pGameInstance->Transform_Frustum_ToLocalSpace(XMLoadFloat4x4(&m_CombinedWorldMatrix));
+
 	for (_uint i = 0; i < iNumMeshes; ++i)
 	{
+		_float3 vLocalCenter = {};
+		_float3 vLocalHalf = {};
+
+		if (true == m_pModelCom->Get_MeshLocalAABB(i, vLocalCenter, vLocalHalf))
+		{
+			const _float fRadius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&vLocalHalf)));
+
+			if (false == m_pGameInstance->Is_In_Frustum_LocalSpace(
+				XMVectorSetW(XMLoadFloat3(&vLocalCenter), 1.f),
+				fRadius))
+			{
+				continue;
+			}
+		}
+
 		if (FAILED(m_pModelCom->Bind_Material(m_pShaderCom, "g_DiffuseTexture", i, TEXTURE_TYPE::DIFFUSE)))
-			/*return E_FAIL;*/
 			continue;
 
 		if (FAILED(m_pShaderCom->Begin(1)))

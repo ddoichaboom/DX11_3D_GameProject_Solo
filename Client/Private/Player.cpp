@@ -73,6 +73,16 @@ _bool CPlayer::Try_GetDashHUDWorldPosition(_float3* pOutPosition) const
 	return true;
 }
 
+_bool CPlayer::Try_Teleport(_float fSearchRadius, _float fConeAngleDegrees)
+{
+	CMonster* pTarget = Find_Target(fSearchRadius, fConeAngleDegrees);
+	if (nullptr == pTarget)
+		return false;   // 호출자 측에서 그대로 액션 진입 (제자리 재생)
+
+	Teleport_BehindTarget(pTarget);
+	return true;
+}
+
 HRESULT CPlayer::Initialize_Prototype()
 {
 	return S_OK;
@@ -1232,7 +1242,19 @@ void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)
 
 void CPlayer::Enable_SkillCollider(_bool bEnable)
 {
+	if (true == bEnable && false == m_bSkillColliderActive)
+		m_SkillHitTargets.clear();
+
 	m_bSkillColliderActive = bEnable;
+}
+
+void CPlayer::Set_SkillColliderRadius(_float fRadius)
+{
+	if (nullptr == m_pSkillCollider)
+		return;
+
+	m_pSkillCollider->Set_Radius(fRadius);
+	m_fSkillColliderRadius = fRadius;
 }
 
 void CPlayer::On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther)
@@ -1341,23 +1363,38 @@ void CPlayer::On_SkillColliderHit(CCollider* pOther)
 {
 	if (false == m_bSkillColliderActive)
 		return;
-	if (nullptr == m_pStateMachine)
+	if (nullptr == m_pStateMachine || nullptr == pOther)
 		return;
 
-	// 현재 액션 컨텍스트로 dispatch — 미래에 다른 스킬이 sphere 콜백 필요하면 else if 분기 추가
+	// R6-B: SKILL_F + START + KnightKiller — 즉시 Start→Loop 전이 (damage X)
 	if (true == Is_SkillF_KnightKiller_Start())
 	{
-		// R6-B: SKILL_F + START + KnightKiller — 즉시 Start→Loop 전이
 		m_pStateMachine->Try_Action_External(
 			CHARACTER_ACTION::SKILL_F, CHARACTER_ACTION_STEP::LOOP);
 
-		// Loop 진입 후 더 이상 detect 필요 없음 → 즉시 OFF
 		Enable_SkillCollider(false);
 		return;
 	}
 
-	// 향후 다른 스킬:
-	// if (true == Is_SkillX_Phase()) { ... }
+	if (m_fSkillColliderDamage <= 0.f)
+		return;
+
+	if (COLLISION_GROUP::MONSTER_BODY != pOther->Get_Group())
+		return;
+
+	CGameObject* pTarget = pOther->Get_Owner();
+	if (nullptr == pTarget)
+		return;
+
+	if (m_SkillHitTargets.end() != m_SkillHitTargets.find(pTarget))
+		return;
+	m_SkillHitTargets.insert(pTarget);
+
+	CMonster* pMonster = dynamic_cast<CMonster*>(pTarget);
+	if (nullptr == pMonster)
+		return;
+
+	pMonster->Take_Damage(m_fSkillColliderDamage);
 }
 
 _bool CPlayer::Is_SkillF_KnightKiller_Start() const
@@ -1368,6 +1405,128 @@ _bool CPlayer::Is_SkillF_KnightKiller_Start() const
 	return (CHARACTER_ACTION::SKILL_F == m_pStateMachine->Get_CurrentCharacterAction()
 		&& CHARACTER_ACTION_STEP::START == m_pStateMachine->Get_CurrentCharacterStep()
 		&& EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon);
+}
+
+_bool CPlayer::Is_SkillF_KnightKiller_Loop() const
+{
+	if (nullptr == m_pStateMachine)
+		return false;
+
+	return (CHARACTER_ACTION::SKILL_F == m_pStateMachine->Get_CurrentCharacterAction()
+		&& CHARACTER_ACTION_STEP::LOOP == m_pStateMachine->Get_CurrentCharacterStep()
+		&& EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon);
+}
+
+CMonster* CPlayer::Find_Target(_float fSearchRadius, _float fConeAngleDegrees) const
+{
+	if (nullptr == m_pTransformCom || nullptr == m_pGameInstance)
+		return nullptr;
+	if (fSearchRadius <= 0.f)
+		return nullptr;
+
+	const map<const _wstring, CLayer*>* pLayers =
+		m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+	if (nullptr == pLayers)
+		return nullptr;
+
+	auto iterLayer = pLayers->find(TEXT("Layer_Monster"));
+	if (pLayers->end() == iterLayer || nullptr == iterLayer->second)
+		return nullptr;
+
+	const list<CGameObject*>& MonsterObjects = iterLayer->second->Get_GameObjects();
+
+	const _float fSearchRadiusSq = fSearchRadius * fSearchRadius;
+	const _bool  bUseConeFilter = (fConeAngleDegrees < 360.f);
+	const _float fHalfAngleCos = bUseConeFilter
+		? cosf(XMConvertToRadians(fConeAngleDegrees * 0.5f))
+		: -1.f;
+
+	_float3 vPlayerPos = {};
+	XMStoreFloat3(&vPlayerPos, m_pTransformCom->Get_State(STATE::POSITION));
+
+	_float3 vPlayerForward = {};
+	XMStoreFloat3(&vPlayerForward, XMVector3Normalize(
+		XMVectorSetY(m_pTransformCom->Get_State(STATE::LOOK), 0.f)));
+
+	CMonster* pBest = nullptr;
+	_float    fBestDistSq = fSearchRadiusSq;
+
+	for (CGameObject* pObject : MonsterObjects)
+	{
+		CMonster* pMonster = dynamic_cast<CMonster*>(pObject);
+		if (nullptr == pMonster) continue;
+		if (pMonster->Get_CurrentHP() <= 0.f) continue;
+
+		CTransform* pMonsterTransform = pMonster->Get_Transform();
+		if (nullptr == pMonsterTransform) continue;
+
+		_float3 vMonsterPos = {};
+		XMStoreFloat3(&vMonsterPos, pMonsterTransform->Get_State(STATE::POSITION));
+
+		const _float fDX = vMonsterPos.x - vPlayerPos.x;
+		const _float fDZ = vMonsterPos.z - vPlayerPos.z;
+		const _float fDistSq = fDX * fDX + fDZ * fDZ;
+
+		if (fDistSq > fSearchRadiusSq) continue;
+		if (fDistSq < 1e-4f)           continue;
+
+		if (true == bUseConeFilter)
+		{
+			const _float fDist = sqrtf(fDistSq);
+			const _float fDotForward =
+				(fDX * vPlayerForward.x + fDZ * vPlayerForward.z) / fDist;
+
+			if (fDotForward < fHalfAngleCos) continue;
+		}
+
+		if (fDistSq < fBestDistSq)
+		{
+			fBestDistSq = fDistSq;
+			pBest = pMonster;
+		}
+	}
+	return pBest;
+}
+
+void CPlayer::Teleport_BehindTarget(CMonster* pTarget)
+{
+	if (nullptr == pTarget || nullptr == m_pTransformCom)
+		return;
+
+	CTransform* pMonsterTransform = pTarget->Get_Transform();
+	if (nullptr == pMonsterTransform)
+		return;
+
+	_float3 vMonsterPos = {};
+	XMStoreFloat3(&vMonsterPos, pMonsterTransform->Get_State(STATE::POSITION));
+
+	_float3 vMonsterBack = {};
+	XMStoreFloat3(&vMonsterBack, XMVector3Normalize(
+		XMVectorSetY(
+			XMVectorNegate(pMonsterTransform->Get_State(STATE::LOOK)),
+			0.f)));
+
+	constexpr _float EXTRA_OFFSET = 0.5f;
+	const _float fBackDistance =
+		PLAYER_BODY_BLOCK_RADIUS +
+		Get_MonsterBodyBlockRadius(pTarget) +
+		EXTRA_OFFSET;
+
+	const _float3 vBehindPos = {
+		vMonsterPos.x + vMonsterBack.x * fBackDistance,
+		vMonsterPos.y,
+		vMonsterPos.z + vMonsterBack.z * fBackDistance
+	};
+
+	m_pTransformCom->Set_State(STATE::POSITION,
+		XMVectorSet(vBehindPos.x, vBehindPos.y, vBehindPos.z, 1.f));
+
+	_float3 vToMonsterDir = {
+		vMonsterPos.x - vBehindPos.x,
+		0.f,
+		vMonsterPos.z - vBehindPos.z
+	};
+	Face_DirectionImmediately(vToMonsterDir);
 }
 
 CPlayer* CPlayer::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)

@@ -87,6 +87,10 @@ public:
 													_float fViewportWidth, _float fViewportHeight,
 													_float4* pRayOrigin, _float4* pRayDir);
 	void						Set_Transform(D3DTS eState, _fmatrix StateMatrix);
+
+	void						Transform_Frustum_ToLocalSpace(_fmatrix WorldMatrix);
+	_bool                       Is_In_Frustum_WorldSpace(_fvector vWorldPos, _float fRange = 0.f) const;
+	_bool                       Is_In_Frustum_LocalSpace(_fvector vLocalPos, _float fRange = 0.f) const;
 #pragma endregion
 
 #pragma region INPUT_DEVICE
@@ -136,6 +140,7 @@ private:
 	class CLight_Manager*		m_pLight_Manager = { nullptr };
 	class CFont_Manager*		m_pFont_Manager = { nullptr };
 	class CCollision_Manager*	m_pCollision_Manager = { nullptr };
+	class CFrustum*				m_pFrustum = { nullptr };
 
 private:
 	_bool						m_bLogicFrozen = { false };

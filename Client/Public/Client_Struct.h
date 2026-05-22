@@ -25,6 +25,9 @@ namespace Client
 		CHARACTER_ACTION			eReturnAction = { CHARACTER_ACTION::IDLE };
 		CHARACTER_ACTION_STEP		eReturnStep = { CHARACTER_ACTION_STEP::NONE };
 		_float						fEnterBlendTime = { 0.f };
+		_float						fSphereRadius = { 0.f };
+		_float						fSphereDamage = { 0.f };
+		_float						fSphereForwardOffset = { 0.f };
 	} CHARACTER_ACTION_POLICY;
 
 	typedef struct tagCharacterAnimTableDesc
