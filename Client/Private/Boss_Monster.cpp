@@ -5,6 +5,7 @@
 #include "NavMesh.h"
 #include "Transform_3D.h"
 #include "Player.h"
+#include "Body_Monster.h"
 
 CBoss_Monster::CBoss_Monster(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
     : CMonster{ pDevice, pContext }
@@ -86,6 +87,18 @@ void CBoss_Monster::Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_
 
     if (MONSTER_ACTION::SKILL_01 == eFromAction && MONSTER_ACTION::SKILL_01 != eToAction)
         End_Skill01Dash();
+
+    if (MONSTER_ACTION::SKILL_10 == eToAction && MONSTER_ACTION_STEP::START == eToStep)
+    {
+        Reset_AreaAttack();
+        m_iSkillAreaCombo = 0;
+    }
+
+    if (MONSTER_ACTION::SKILL_10 == eFromAction && MONSTER_ACTION::SKILL_10 != eToAction)
+    {
+        Reset_AreaAttack();
+        m_iSkillAreaCombo = 0;
+    }
 }
 
 void CBoss_Monster::Update(_float fTimeDelta)
@@ -124,19 +137,7 @@ void CBoss_Monster::Update(_float fTimeDelta)
     if (true == bCrashBefore && false == bCrashNow)
         m_bPostCrashPatternPending = true;
 
-    if (MONSTER_ACTION::SKILL_10 == eAction && MONSTER_ACTION_STEP::START == eStep)
-        m_fSkill10LoopElapsed = 0.f;
-
-    if (MONSTER_ACTION::SKILL_10 == eAction && MONSTER_ACTION_STEP::LOOP == eStep)
-    {
-        m_fSkill10LoopElapsed += fTimeDelta;
-
-        if (m_fSkill10LoopElapsed >= m_fSkill10LoopDuration)
-        {
-            m_fSkill10LoopElapsed = 0.f;
-            m_pStateMachine->Try_Action(MONSTER_ACTION::SKILL_10, MONSTER_ACTION_STEP::END);
-        }
-    }
+    Tick_AreaAttack(fTimeDelta);
 }
 
 MONSTER_ACTION CBoss_Monster::Select_AIAction(CGameObject* pTarget, _float fDistance)
@@ -284,30 +285,35 @@ void CBoss_Monster::Apply_RootMotion(const _float3& vLocalDelta)
 
 void CBoss_Monster::On_AttackHitboxNotify(_bool bActive)
 {
+    if (nullptr == m_pStateMachine)
+    {
+        __super::On_AttackHitboxNotify(bActive);
+        return;
+    }
+
+    const MONSTER_ACTION eAction = m_pStateMachine->Get_CurrentMonsterAction();
+    const MONSTER_ACTION_STEP eStep = m_pStateMachine->Get_CurrentMonsterStep();
+
+    if (MONSTER_ACTION::SKILL_10 == eAction)
+    {
+        Handle_Skill10AreaNotify(bActive, eStep);
+        return;
+    }
+
     if (false == bActive)
     {
         __super::On_AttackHitboxNotify(false);
         return;
     }
 
-    if (nullptr == m_pStateMachine)
-    {
-        __super::On_AttackHitboxNotify(true);
-        return;
-    }
-
-    const MONSTER_ACTION eAction = m_pStateMachine->Get_CurrentMonsterAction();
-
     switch (eAction)
     {
     case MONSTER_ACTION::SKILL_04:
-        m_AttackHitTargets.clear();
-        Apply_RadiusDamage(6.5f, 10.f);
+        Begin_AreaAttack(Make_CircleArea(6.5f, 4.0f, 10.f));
         break;
 
     case MONSTER_ACTION::SKILL_11:
-        m_AttackHitTargets.clear();
-        Apply_RadiusDamage(12.0f, 15.f);
+        Begin_AreaAttack(Make_CircleArea(12.0f, 4.0f, 15.f));
         break;
 
     default:
@@ -366,33 +372,269 @@ MONSTER_ACTION CBoss_Monster::Select_PostCrashPattern(CGameObject* pTarget, _flo
     return MONSTER_ACTION::END;
 }
 
-void CBoss_Monster::Apply_RadiusDamage(_float fRadius, _float fDamage)
+void CBoss_Monster::Begin_AreaAttack(const AREA_ATTACK_DESC& Desc)
+{
+    if (true == m_bAreaAttackPending)
+        Apply_AreaAttackDamage(m_PendingAreaAttack);
+
+    if (true == Desc.bClearHitTargetsOnBegin)
+        m_AttackHitTargets.clear();
+
+    if (Desc.fFillDuration <= 0.f)
+    {
+        Apply_AreaAttackDamage(Desc);
+        return;
+    }
+
+    m_PendingAreaAttack = Desc;
+    m_bAreaAttackPending = true;
+    m_fAreaAttackElapsed = 0.f;
+}
+
+void CBoss_Monster::Tick_AreaAttack(_float fTimeDelta)
+{
+    if (false == m_bAreaAttackPending)
+        return;
+
+    if (m_PendingAreaAttack.fFillDuration <= 0.f)
+        return;
+
+    m_fAreaAttackElapsed += fTimeDelta;
+
+    if (m_fAreaAttackElapsed >= m_PendingAreaAttack.fFillDuration)
+    {
+        Apply_AreaAttackDamage(m_PendingAreaAttack);
+        Reset_AreaAttack();
+    }
+}
+
+void CBoss_Monster::Apply_AreaAttackDamage(const AREA_ATTACK_DESC& Desc)
 {
     CGameObject* pTarget = Resolve_Target();
-    if (nullptr == pTarget || nullptr == pTarget->Get_Transform() || nullptr == m_pTransformCom)
+    if (nullptr == pTarget)
         return;
 
     if (m_AttackHitTargets.end() != m_AttackHitTargets.find(pTarget))
         return;
 
-    _float3 vSelf{};
-    _float3 vTarget{};
-
-    XMStoreFloat3(&vSelf, m_pTransformCom->Get_State(STATE::POSITION));
-    XMStoreFloat3(&vTarget, pTarget->Get_Transform()->Get_State(STATE::POSITION));
-
-    const _float fDeltaX = vTarget.x - vSelf.x;
-    const _float fDeltaZ = vTarget.z - vSelf.z;
-    const _float fDistanceSq = fDeltaX * fDeltaX + fDeltaZ * fDeltaZ;
-
-    if (fDistanceSq > fRadius * fRadius)
+    if (false == Is_TargetInArea(pTarget, Desc))
         return;
 
     m_AttackHitTargets.insert(pTarget);
 
     CPlayer* pPlayer = dynamic_cast<CPlayer*>(pTarget);
     if (nullptr != pPlayer)
-        pPlayer->Take_Damage(fDamage);
+        pPlayer->Take_Damage(Desc.fDamage);
+}
+
+_bool CBoss_Monster::Is_TargetInArea(CGameObject* pTarget, const AREA_ATTACK_DESC& Desc) const
+{
+    if (nullptr == pTarget || nullptr == pTarget->Get_Transform() || nullptr == m_pTransformCom)
+        return false;
+
+    _vector vOwnerPos = m_pTransformCom->Get_State(STATE::POSITION);
+    _vector vTargetPos = pTarget->Get_Transform()->Get_State(STATE::POSITION);
+
+    _vector vRight = XMVector3Normalize(XMVectorSetY(m_pTransformCom->Get_State(STATE::RIGHT), 0.f));
+    _vector vLook = XMVector3Normalize(XMVectorSetY(m_pTransformCom->Get_State(STATE::LOOK), 0.f));
+    _vector vUp = XMVectorSet(0.f, 1.f, 0.f, 0.f);
+
+    _vector vCenter = vOwnerPos;
+    vCenter = XMVectorAdd(vCenter, XMVectorScale(vRight, Desc.vOffset.x));
+    vCenter = XMVectorAdd(vCenter, XMVectorScale(vUp, Desc.vOffset.y));
+    vCenter = XMVectorAdd(vCenter, XMVectorScale(vLook, Desc.vOffset.z));
+
+    _vector vDelta = XMVectorSubtract(vTargetPos, vCenter);
+
+    _float3 vDeltaFloat{};
+    XMStoreFloat3(&vDeltaFloat, vDelta);
+
+    switch (Desc.eShape)
+    {
+    case AREA_ATTACK_SHAPE::CIRCLE:
+    case AREA_ATTACK_SHAPE::RING:
+    {
+        if (fabsf(vDeltaFloat.y) > Desc.fHeight)
+            return false;
+
+        const _float fDistanceSq = vDeltaFloat.x * vDeltaFloat.x + vDeltaFloat.z * vDeltaFloat.z;
+        const _float fInnerSq = Desc.fInnerRadius * Desc.fInnerRadius;
+        const _float fOuterSq = Desc.fOuterRadius * Desc.fOuterRadius;
+
+        return fDistanceSq >= fInnerSq && fDistanceSq <= fOuterSq;
+    }
+
+    case AREA_ATTACK_SHAPE::FRONT_SPHERE:
+    {
+        if (fabsf(vDeltaFloat.y) > Desc.fHeight)
+            return false;
+
+        const _float fDistanceSq = XMVectorGetX(XMVector3LengthSq(vDelta));
+        return fDistanceSq <= Desc.fOuterRadius * Desc.fOuterRadius;
+    }
+
+    case AREA_ATTACK_SHAPE::FRONT_BOX:
+    {
+        const _float fLocalX = XMVectorGetX(XMVector3Dot(vDelta, vRight));
+        const _float fLocalY = XMVectorGetX(XMVector3Dot(vDelta, vUp));
+        const _float fLocalZ = XMVectorGetX(XMVector3Dot(vDelta, vLook));
+
+        return fabsf(fLocalX) <= Desc.vBoxHalfExtents.x &&
+            fabsf(fLocalY) <= Desc.vBoxHalfExtents.y &&
+            fabsf(fLocalZ) <= Desc.vBoxHalfExtents.z;
+    }
+    }
+
+    return false;
+}
+
+void CBoss_Monster::Reset_AreaAttack()
+{
+    m_PendingAreaAttack = {};
+    m_bAreaAttackPending = false;
+    m_fAreaAttackElapsed = 0.f;
+}
+
+AREA_ATTACK_DESC CBoss_Monster::Make_CircleArea(_float fRadius, _float fHeight, _float fDamage, _float fFillDuration) const
+{
+    AREA_ATTACK_DESC Desc{};
+    Desc.eShape = AREA_ATTACK_SHAPE::CIRCLE;
+    Desc.fInnerRadius = 0.f;
+    Desc.fOuterRadius = fRadius;
+    Desc.fHeight = fHeight;
+    Desc.fDamage = fDamage;
+    Desc.fFillDuration = fFillDuration;
+    return Desc;
+}
+
+AREA_ATTACK_DESC CBoss_Monster::Make_RingArea(_float fInnerRadius, _float fOuterRadius, _float fHeight, _float fDamage, _float fFillDuration) const
+{
+    AREA_ATTACK_DESC Desc{};
+    Desc.eShape = AREA_ATTACK_SHAPE::RING;
+    Desc.fInnerRadius = fInnerRadius;
+    Desc.fOuterRadius = fOuterRadius;
+    Desc.fHeight = fHeight;
+    Desc.fDamage = fDamage;
+    Desc.fFillDuration = fFillDuration;
+    return Desc;
+}
+
+void CBoss_Monster::Begin_PendingAreaAttack(const AREA_ATTACK_DESC& Desc)
+{
+    if (true == m_bAreaAttackPending)
+        return;
+
+    if (true == Desc.bClearHitTargetsOnBegin)
+        m_AttackHitTargets.clear();
+
+    m_PendingAreaAttack = Desc;
+    m_PendingAreaAttack.fFillDuration = 0.f;
+    m_bAreaAttackPending = true;
+    m_fAreaAttackElapsed = 0.f;
+}
+
+void CBoss_Monster::Resolve_PendingAreaAttack()
+{
+    if (false == m_bAreaAttackPending)
+        return;
+
+    Apply_AreaAttackDamage(m_PendingAreaAttack);
+    Reset_AreaAttack();
+}
+
+void CBoss_Monster::Handle_Skill10AreaNotify(_bool bActive, MONSTER_ACTION_STEP eStep)
+{
+    if (true == bActive)
+    {
+        if (MONSTER_ACTION_STEP::START == eStep)
+        {
+            m_iSkillAreaCombo = 0;
+
+            Begin_PendingAreaAttack(Make_CircleArea(
+                m_fSkill10Radius1,
+                m_fSkill10Height,
+                12.f));
+
+            return;
+        }
+
+        if (MONSTER_ACTION_STEP::LOOP == eStep)
+        {
+            if (true == m_bAreaAttackPending)
+                return;
+
+            if (2 == m_iSkillAreaCombo)
+            {
+                Begin_PendingAreaAttack(Make_RingArea(
+                    m_fSkill10Radius1,
+                    m_fSkill10Radius2,
+                    m_fSkill10Height,
+                    14.f));
+            }
+            else if (3 == m_iSkillAreaCombo)
+            {
+                Begin_PendingAreaAttack(Make_RingArea(
+                    m_fSkill10Radius2,
+                    m_fSkill10Radius3,
+                    m_fSkill10Height,
+                    16.f));
+            }
+            else if (4 == m_iSkillAreaCombo)
+            {
+                Begin_PendingAreaAttack(Make_CircleArea(
+                    m_fSkill10Radius3,
+                    m_fSkill10Height,
+                    20.f));
+
+                if (nullptr != m_pStateMachine)
+                    m_pStateMachine->Try_Action(MONSTER_ACTION::SKILL_10, MONSTER_ACTION_STEP::END);
+            }
+
+            return;
+        }
+
+        return;
+    }
+
+    if (MONSTER_ACTION_STEP::LOOP == eStep)
+    {
+        if (0 == m_iSkillAreaCombo)
+        {
+            m_iSkillAreaCombo = 1;
+            Restart_Skill10Loop();
+            return;
+        }
+
+        if (1 == m_iSkillAreaCombo ||
+            2 == m_iSkillAreaCombo ||
+            3 == m_iSkillAreaCombo)
+        {
+            Resolve_PendingAreaAttack();
+            ++m_iSkillAreaCombo;
+            Restart_Skill10Loop();
+            return;
+        }
+
+        return;
+    }
+
+    if (MONSTER_ACTION_STEP::END == eStep)
+    {
+        if (4 == m_iSkillAreaCombo)
+            Resolve_PendingAreaAttack();
+
+        Reset_AreaAttack();
+        m_iSkillAreaCombo = 0;
+        return;
+    }
+}
+
+void CBoss_Monster::Restart_Skill10Loop()
+{
+    if (nullptr == m_pBody)
+        return;
+
+    m_pBody->Play_Action(MONSTER_ACTION::SKILL_10, MONSTER_ACTION_STEP::LOOP, MONSTER_PHASE::COMMON);
 }
 
 void CBoss_Monster::Begin_Skill01Dash(CGameObject* pTarget)

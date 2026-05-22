@@ -262,5 +262,14 @@ namespace Client
 		DASH_STEP1, DASH_STEP1_GLOW, DASH_STEP2, DASH_STEP2_GLOW, DASH_STEP3, DASH_STEP3_GLOW,
 		END
 	};
+
+	enum class AREA_ATTACK_SHAPE
+	{
+		CIRCLE,
+		RING,
+		FRONT_BOX,
+		FRONT_SPHERE,
+		END
+	};
 }
 #endif // Client_Enum_h__

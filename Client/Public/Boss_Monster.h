@@ -51,7 +51,19 @@ protected:
 private:
     MONSTER_ACTION                  Select_PostCrashPattern(CGameObject* pTarget, _float fDistance);
 
-    void                            Apply_RadiusDamage(_float fRadius, _float fDamage);
+    void                            Begin_AreaAttack(const AREA_ATTACK_DESC& Desc);
+    void                            Tick_AreaAttack(_float fTimeDelta);
+    void                            Apply_AreaAttackDamage(const AREA_ATTACK_DESC& Desc);
+    _bool                           Is_TargetInArea(CGameObject* pTarget, const AREA_ATTACK_DESC& Desc) const;
+    void                            Reset_AreaAttack();
+
+    AREA_ATTACK_DESC                Make_CircleArea(_float fRadius, _float fHeight, _float fDamage, _float fFillDuration = 0.f) const;
+    AREA_ATTACK_DESC                Make_RingArea(_float fInnerRadius, _float fOuterRadius, _float fHeight, _float fDamage, _float fFillDuration = 0.f) const;
+
+    void                            Begin_PendingAreaAttack(const AREA_ATTACK_DESC& Desc);
+    void                            Resolve_PendingAreaAttack();
+    void                            Handle_Skill10AreaNotify(_bool bActive, MONSTER_ACTION_STEP eStep);
+    void                            Restart_Skill10Loop();
 
     void                            Begin_Skill01Dash(CGameObject* pTarget);
     void                            End_Skill01Dash();
@@ -71,8 +83,16 @@ private:
     _bool                           m_bPostCrashPatternPending = { false };
     _bool                           m_bSkill01DashActive = { false };
 
-    _float                          m_fSkill10LoopElapsed = { 0.f };
-    _float                          m_fSkill10LoopDuration = { 2.1f };
+    AREA_ATTACK_DESC                m_PendingAreaAttack = {};
+    _bool                           m_bAreaAttackPending = { false };
+    _float                          m_fAreaAttackElapsed = { 0.f };
+
+    _uint                           m_iSkillAreaCombo = { 0 };
+
+    _float                          m_fSkill10Radius1 = { 4.5f };
+    _float                          m_fSkill10Radius2 = { 8.0f };
+    _float                          m_fSkill10Radius3 = { 12.0f };
+    _float                          m_fSkill10Height = { 4.0f };
 
     _float3                         m_vSkill01DashTargetPosition = {};
     _float                          m_fSkill01RootMotionScale = { 1.f };

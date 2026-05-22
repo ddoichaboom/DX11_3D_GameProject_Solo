@@ -180,6 +180,23 @@ namespace Client
 		WEAPON_TYPE			eCategory;
 		const _tchar*		pModelTag;
 	}WEAPON_INFO;
+
+	typedef struct tagAreaAttackDesc
+	{
+		AREA_ATTACK_SHAPE             eShape = { AREA_ATTACK_SHAPE::CIRCLE };
+
+		_float                        fInnerRadius = { 0.f };
+		_float                        fOuterRadius = { 0.f };
+		_float                        fHeight = { 3.f };
+
+		_float3                       vOffset = {};
+		_float3                       vBoxHalfExtents = {};
+
+		_float                        fDamage = { 0.f };
+		_float                        fFillDuration = { 0.f };
+
+		_bool                         bClearHitTargetsOnBegin = { true };
+	}AREA_ATTACK_DESC;
 }
 
 #endif // Client_Struct_h

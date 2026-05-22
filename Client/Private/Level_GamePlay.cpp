@@ -237,6 +237,9 @@ void CLevel_GamePlay::Update(_float fTimeDelta)
 
 	if (nullptr != pBossMonster)
 	{
+		if (m_pGameInstance->Get_KeyDown('6'))
+			pBossMonster->Debug_TryAction(MONSTER_ACTION::SKILL_10, MONSTER_ACTION_STEP::START);
+
 		if (m_pGameInstance->Get_KeyDown('7'))
 			pBossMonster->Debug_TryAction(MONSTER_ACTION::BASIC_ATTACK_01);
 
