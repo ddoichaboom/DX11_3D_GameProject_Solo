@@ -27,7 +27,7 @@ private:
 	{
 		_float3		vRawPosition = {};
 		_float3		vPreviewPosition = {};
-		_int		iSnapVertexIndex = { NAVMESH_INVALID_INDEX };
+		_int		iSnapVertexIndex = { INVALID_INDEX };
 		_bool		bSnapped = { false };
 	}NAVMESH_PICK_POINT;
 
@@ -38,6 +38,7 @@ private:
 public:
 	void					Render_Overlay(const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight);
 	void					Handle_ViewportClick(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
+	void                    Handle_LightViewportClick(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
 
 	HRESULT					Create_NavMeshCell();
 	void					Clear_PickPoints();
@@ -49,9 +50,14 @@ public:
 
 	HRESULT					Set_PlayerSpawnPoint();
 	HRESULT					Add_MonsterSpawnPoint(SPAWN_TYPE eType);
+	HRESULT					Add_DefaultDirectionalLight();
+
+	HRESULT					Delete_SelectedLight();
 	HRESULT					Delete_LastSpawnPoint();
 	HRESULT					Delete_SelectedSpawnPoint();
+
 	void					Clear_SpawnPoints();
+	void					Clear_Lights();
 	HRESULT					Save_SceneData();
 	HRESULT					Load_SceneData();
 
@@ -62,6 +68,15 @@ public:
 	_uint					Get_NumSpawnPoints() const { return static_cast<_uint>(m_SpawnPoints.size()); }
 	_bool					Has_SpawnPoint() const { return false == m_SpawnPoints.empty(); }
 	const SPAWN_POINT*		Get_SpawnPoint(_uint iIndex) const;
+
+	_uint					Get_NumSceneLights() const { return static_cast<_uint>(m_SceneLights.size()); }
+	_int					Get_SelectedLightIndex() const { return m_iSelectedLightIndex; }
+	const SCENE_LIGHT*		Get_SceneLight(_uint iIndex) const;
+
+	void                    Set_SelectedLightIndex(_int iIndex);
+	void                    Set_SelectedSceneLight(const SCENE_LIGHT& Light);
+
+
 	void					Set_SelectedSpawnPointIndex(_int iIndex);
 	void					Set_SelectedSpawnPointRotation(const _float3& vRotationDeg);
 	void					Set_SelectedSpawnPointYaw(_float fYawDeg);
@@ -95,6 +110,10 @@ private:
 
 	void					Log_EditStatus(LOG_LEVEL eLevel, const string& strMessage) const;
 
+	void                    Render_Lights(const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight);
+	void                    Select_Light(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
+	HRESULT                 Add_PointLight(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
+
 private:
 	CGameInstance*			m_pGameInstance = { nullptr };
 
@@ -102,12 +121,15 @@ private:
 	_float3					m_vLastNavMeshPick = {};
 	vector<NAVMESH_PICK_POINT> m_NavMeshPickedPoints;
 
-	_int					m_iSelectedNavMeshCellIndex = { NAVMESH_INVALID_INDEX };
-	_int					m_iSelectedNavMeshVertexIndex = { NAVMESH_INVALID_INDEX };
+	_int					m_iSelectedNavMeshCellIndex = { INVALID_INDEX };
+	_int					m_iSelectedNavMeshVertexIndex = { INVALID_INDEX };
 	vector<NAVMESH_SNAPSHOT> m_NavMeshUndoStack;
 	vector<NAVMESH_SNAPSHOT> m_NavMeshRedoStack;
 	vector<SPAWN_POINT>		m_SpawnPoints;
-	_int					m_iSelectedSpawnPointIndex = { NAVMESH_INVALID_INDEX };
+	_int					m_iSelectedSpawnPointIndex = { INVALID_INDEX };
+
+	vector<SCENE_LIGHT>		m_SceneLights;
+	_int					m_iSelectedLightIndex = { INVALID_INDEX };
 
 public:
 	static CNavMeshEditorTool* Create();

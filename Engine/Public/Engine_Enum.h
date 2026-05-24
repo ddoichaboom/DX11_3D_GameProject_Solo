@@ -11,7 +11,20 @@ namespace Engine
 
 	enum class RENDERID { PRIORITY, NONBLEND, NONLIGHT, BLEND, UI, END };
 
-    enum class DEFERRED { DEBUG, DIRECTIONAL, POINT, COMBINED, END };
+    enum class DEFERRED
+    {
+        DEBUG,
+        DIRECTIONAL,
+        POINT,
+        COMBINED,
+        COMBINED_DIFFUSE,
+        COMBINED_NORMAL,
+        COMBINED_DEPTH,
+        COMBINED_SHADE,
+        COMBINED_SPECULAR,
+        FORCE_ALPHA,
+        END
+    };
 
 	enum class STATE { RIGHT, UP, LOOK, POSITION, END };
 

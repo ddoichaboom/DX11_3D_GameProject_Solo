@@ -672,7 +672,7 @@ void CBoss_Monster::Begin_Skill01Dash(CGameObject* pTarget)
         CNavMesh* pNavMesh = m_pNavigationAgent->Get_NavMesh();
         const _int iTargetCellIndex = pNavMesh->Find_Cell(m_vSkill01DashTargetPosition);
 
-        if (NAVMESH_INVALID_INDEX != iTargetCellIndex)
+        if (INVALID_INDEX != iTargetCellIndex)
             m_vSkill01DashTargetPosition.y = pNavMesh->Compute_Height(iTargetCellIndex, m_vSkill01DashTargetPosition);
         else
             m_vSkill01DashTargetPosition.y = vCurrentPosition.y;

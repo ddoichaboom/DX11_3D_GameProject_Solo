@@ -23,7 +23,7 @@ public:
 	typedef struct tagMonsterDesc : public CGameObject::GAMEOBJECT_DESC
 	{
 		CNavMesh*			pNavMesh = { nullptr };
-		_int				iStartCellIndex = { NAVMESH_INVALID_INDEX };
+		_int				iStartCellIndex = { INVALID_INDEX };
 
 		SPAWN_TYPE			eSpawnType = { SPAWN_TYPE::END };
 		MONSTER_ANIM_SET	eAnimSet = { MONSTER_ANIM_SET::NONE };

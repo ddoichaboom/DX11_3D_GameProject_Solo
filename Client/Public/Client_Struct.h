@@ -97,10 +97,10 @@ namespace Client
 
 		_bool bWeaponSwapPressed = { false };
 		_bool bSkillFPressed = { false };
+		_bool bShiftPressed = { false };
 
 		_long lMouseDeltaX = {};
 		_long lMouseDeltaY = {};
-
 	}PLAYER_RAW_INPUT_FRAME;
 
 	typedef struct tagPlayerIntentFrame
@@ -111,6 +111,7 @@ namespace Client
 		_bool bDashRequested = { false };		// �̹� �����ӿ� Dash ��û
 		_bool bAttackRequested = { false };
 		_bool bSkillFRequested = { false };
+		_bool bQTERequested = { false };
 
 		_bool bGuardHeld = { false };
 
@@ -123,17 +124,31 @@ namespace Client
 		SPAWN_TYPE		eType = { SPAWN_TYPE::END };
 		_float3			vPosition = {};
 		_float3			vRotationDeg = {};
-		_int			iNavCellIndex = { NAVMESH_INVALID_INDEX };
+		_int			iNavCellIndex = { INVALID_INDEX };
 		_tchar			szName[MAX_PATH] = {};
 
 		_int			iLevel = { 1 };
 		_tchar			szDisplayName[MAX_PATH] = {};
 	}SPAWN_POINT;
 
+	typedef struct tagSceneLight
+	{
+		LIGHT                   eType = { LIGHT::DIRECTIONAL };
+
+		_float4                 vDiffuse = {};
+		_float4                 vAmbient = {};
+		_float4                 vSpecular = {};
+
+		_float4                 vDirection = {};
+		_float4                 vPosition = {};
+		_float                  fRange = {};
+	}SCENE_LIGHT;
+
 	typedef struct tagSceneData
 	{
 		_tchar					szNavDataPath[MAX_PATH] = { };
 		vector<SPAWN_POINT>		SpawnPoints;
+		vector<SCENE_LIGHT>     SceneLights;
 	}SCENE_DATA;
 
 	typedef struct tagUIElemet

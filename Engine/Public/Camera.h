@@ -28,11 +28,19 @@ public:
 
 public:
 	void					Update_PipeLine();		
+	void					Resize_Projection(_uint iWidth, _uint iHeight);
+	void					Set_ActiveCamera(_bool bActive) { m_bActiveCamera = bActive; }
+	_bool					Is_ActiveCamera() const { return m_bActiveCamera; }
 
+protected:
+	class CPipeLine*		m_pPipeLine = { nullptr };
+	
 protected:
 	_float					m_fFovy{}, m_fAspect{}, m_fNear{}, m_fFar{};
 	_float4x4				m_ProjMatrix = {};
-	class CPipeLine*		m_pPipeLine = { nullptr };
+
+	_bool					m_bActiveCamera = { true };
+
 
 public:
 	virtual CGameObject*	Clone(void* pArg) PURE;

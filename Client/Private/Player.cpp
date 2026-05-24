@@ -45,10 +45,13 @@ CPlayer::CPlayer(const CPlayer& Prototype)
 {
 }
 
-void CPlayer::Take_Damage(_float fAmount)
+void CPlayer::Take_Damage(_float fAmount, CMonster* pAttacker)
 {
 	if (true == m_bInvincible)
+	{
+		On_DodgeSucceeded(pAttacker);
 		return;
+	}
 
 	if (m_fCurrentHP <= 0.f)
 		return;
@@ -193,6 +196,8 @@ void CPlayer::Update(_float fTimeDelta)
 			}
 
 			m_pStateMachine->Update(fTimeDelta);
+
+			Tick_QTEWindow(fTimeDelta);
 		}
 
 		for (auto& Pair : m_PartObjects)
@@ -562,7 +567,7 @@ HRESULT CPlayer::Ready_Components(const PLAYER_DESC& Desc)
 
 	if (nullptr != m_pNavigationAgent &&
 		m_pNavigationAgent->Has_NavMesh() &&
-		NAVMESH_INVALID_INDEX == m_pNavigationAgent->Get_CurrentCellIndex())
+		INVALID_INDEX == m_pNavigationAgent->Get_CurrentCellIndex())
 	{
 		_float3 vPosition = {};
 		XMStoreFloat3(&vPosition, m_pTransformCom->Get_State(STATE::POSITION));
@@ -934,7 +939,7 @@ void CPlayer::Add_BodyBlockCandidateCell(_int* pCandidateCells, _uint* pNumCandi
 	if (nullptr == pCandidateCells || nullptr == pNumCandidateCells)
 		return;
 
-	if (NAVMESH_INVALID_INDEX == iCellIndex)
+	if (INVALID_INDEX == iCellIndex)
 		return;
 
 	for (_uint i = 0; i < *pNumCandidateCells; ++i)
@@ -955,7 +960,7 @@ _bool CPlayer::Contains_BodyBlockCandidateCell(const _int* pCandidateCells, _uin
 	if (nullptr == pCandidateCells)
 		return false;
 
-	if (NAVMESH_INVALID_INDEX == iCellIndex)
+	if (INVALID_INDEX == iCellIndex)
 		return false;
 
 	for (_uint i = 0; i < iNumCandidateCells; ++i)
@@ -1054,6 +1059,7 @@ void CPlayer::Gather_RawInput(PLAYER_RAW_INPUT_FRAME* pOutRaw)
 	pOutRaw->bDashPressed = m_pGameInstance->Get_KeyDown(VK_SPACE);
 	pOutRaw->bWeaponSwapPressed = m_pGameInstance->Get_KeyDown('C');
 	pOutRaw->bSkillFPressed = m_pGameInstance->Get_KeyDown('F');
+	pOutRaw->bShiftPressed = m_pGameInstance->Get_KeyDown(VK_SHIFT);
 
 	const _bool bMouseLBtnDown = m_pGameInstance->Get_MouseBtnDown(MOUSEBTN::LBUTTON);
 	const _bool bMouseLBtnHeld = m_pGameInstance->Get_MouseBtnState(MOUSEBTN::LBUTTON);
@@ -1226,13 +1232,16 @@ void CPlayer::Update_WeaponHitboxes()
 	m_bPrevAttackHitboxActive = bHitboxActive;
 }
 
-void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)
+void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction, CMonster* pAttacker)
 {
 	if (nullptr == m_pStateMachine)
 		return;
 
 	if (true == m_bInvincible)
+	{
+		On_DodgeSucceeded(pAttacker);
 		return;
+	}
 
 	m_AttackHitTargets.clear();
 	m_bPrevAttackHitboxActive = false;
@@ -1261,6 +1270,30 @@ void CPlayer::Set_SkillColliderRadius(_float fRadius)
 
 	m_pSkillCollider->Set_Radius(fRadius);
 	m_fSkillColliderRadius = fRadius;
+}
+
+void CPlayer::Set_Invincible(_bool bInvincible)
+{
+	if (true == bInvincible)
+		m_bDodgeConsumedThisInvincible = false;
+
+	m_bInvincible = bInvincible;
+}
+
+void CPlayer::Consume_LatestQTEWindow()
+{
+	if (true == m_QTEWindows.empty())
+		return;
+
+	const QTE_TYPE eType = m_QTEWindows.back().eType;
+	m_QTEWindows.pop_back();
+
+	// 해당 종류 쿨다운 시작
+	m_fQTECooldown[ETOI(eType)] = QTE_COOLDOWN[ETOI(eType)];
+
+#ifdef _DEBUG
+	OutputDebugStringA("[QTE] Window CONSUMED - cooldown started\n");
+#endif
 }
 
 void CPlayer::On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther)
@@ -1311,6 +1344,57 @@ _bool CPlayer::Is_AerialAction() const
 		return true;
 
 	return false;
+}
+
+void CPlayer::Open_QTEWindow(CMonster* pAttacker)
+{
+	// 현재 모든 회피 성공은 EXTREME_DASH 카운터로 매핑 (추후 attacker 종류별 분기 가능)
+	QTE_WINDOW Window{};
+	Window.eType = QTE_TYPE::EXTREME_DASH;
+	Window.fTimer = QTE_WINDOW_DURATION;
+	Window.pAttacker = pAttacker;
+
+	m_QTEWindows.push_back(Window);
+
+#ifdef _DEBUG
+	char szBuf[128];
+	sprintf_s(szBuf, "[QTE] Window OPEN (1.5s) - stack=%zu - Shift to counter\n", m_QTEWindows.size());
+	OutputDebugStringA(szBuf);
+#endif
+}
+
+void CPlayer::On_DodgeSucceeded(CMonster* pAttacker)
+{
+	if (true == m_bDodgeConsumedThisInvincible)
+		return;
+
+	m_bDodgeConsumedThisInvincible = true;
+	Open_QTEWindow(pAttacker);
+}
+
+void CPlayer::Tick_QTEWindow(_float fTimeDelta)
+{
+	// 1) 각 윈도우 타이머 감소(독립, 동일 dt) + 만료 제거
+	for (auto it = m_QTEWindows.begin(); it != m_QTEWindows.end(); )
+	{
+		it->fTimer -= fTimeDelta;
+		if (it->fTimer <= 0.f)
+		{
+#ifdef _DEBUG
+			OutputDebugStringA("[QTE] Window EXPIRED\n");
+#endif
+			it = m_QTEWindows.erase(it);
+		}
+		else
+			++it;
+	}
+
+	// 2) 종류별 쿨다운 감소
+	for (int i = 0; i < QTE_TYPE_COUNT; ++i)
+	{
+		if (m_fQTECooldown[i] > 0.f)
+			m_fQTECooldown[i] -= fTimeDelta;
+	}
 }
 
 HRESULT CPlayer::Ready_SkillCollider()

@@ -18,6 +18,14 @@ public:
 	void						Add_RenderGroup(RENDERID eGroupID, class CGameObject* pGameObject);
 	HRESULT						Draw();
 
+	HRESULT						Resize(_uint iWidth, _uint iHeight);
+
+#ifdef _DEBUG
+public:
+	HRESULT                     Resize_DebugRenderTargets(_uint iCanvasWidth, _uint iCanvasHeight);
+#endif 
+
+
 private:
 	ID3D11Device*				m_pDevice = { nullptr };
 	ID3D11DeviceContext*		m_pContext = { nullptr };
@@ -25,6 +33,8 @@ private:
 #ifdef _DEBUG
 private:
 	HRESULT                     Render_Debug();
+
+	HRESULT                     Ready_DebugRenderTargets(_uint iCanvasWidth, _uint iCanvasHeight);
 #endif
 
 private:
@@ -34,9 +44,16 @@ private:
 	class CShader*				m_pShader = { nullptr };
 	class CVIBuffer_Rect*		m_pVIBuffer = { nullptr };
 
+private:
 	_float4x4					m_WorldMatrix = {};
 	_float4x4					m_ViewMatrix = {};
 	_float4x4					m_ProjMatrix = {};
+
+#ifdef _DEBUG
+private:
+	_bool						m_bRenderTargetDebug = { false };
+	_uint						m_iDeferredDebugView = { 0 };
+#endif
 
 private:
 	HRESULT						Render_Priority();
@@ -47,6 +64,8 @@ private:
 	HRESULT						Render_Lights();
 	HRESULT						Render_Combined();
 	HRESULT						Render_NonLight();
+
+	HRESULT						Force_ViewportAlpha();
 
 
 public:

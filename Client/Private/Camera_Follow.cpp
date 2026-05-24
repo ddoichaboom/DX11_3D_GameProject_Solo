@@ -44,19 +44,9 @@ HRESULT CCamera_Follow::Initialize(void* pArg)
 
 void CCamera_Follow::Priority_Update(_float fTimeDelta)
 {
-
-}
-
-void CCamera_Follow::Update(_float fTimeDelta)
-{
-}
-
-void CCamera_Follow::Late_Update(_float fTimeDelta)
-{
-	if (m_pGameInstance->Is_GameLogic_Frozen())
+	if (false == Is_ActiveCamera())
 		return;
 
-	// (1) 입력 수집 & SpringArm에 전달
 	_long lDX = m_pGameInstance->Get_MouseDelta(MOUSEAXIS::X);
 	_long lDY = m_pGameInstance->Get_MouseDelta(MOUSEAXIS::Y);
 
@@ -65,10 +55,25 @@ void CCamera_Follow::Late_Update(_float fTimeDelta)
 	m_pSpringArm->Update_Rotation(lDX, lDY);
 	m_pSpringArm->Update_Arm(fTimeDelta);
 
-	// 2) SpringArm 결과를 Transform State 로 적용
 	Apply_SpringArmToTransform();
 
-	__super::Update_PipeLine();
+	__super::Priority_Update(fTimeDelta);
+}
+
+void CCamera_Follow::Update(_float fTimeDelta)
+{
+	if (false == Is_ActiveCamera())
+		return;
+
+	__super::Update(fTimeDelta);
+}
+
+void CCamera_Follow::Late_Update(_float fTimeDelta)
+{
+	if (false == Is_ActiveCamera())
+		return;
+
+	__super::Late_Update(fTimeDelta);
 }
 
 HRESULT CCamera_Follow::Render()

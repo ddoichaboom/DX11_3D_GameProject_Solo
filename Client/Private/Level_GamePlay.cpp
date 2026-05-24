@@ -19,6 +19,41 @@ static const _tchar* SCENEDATA_PATH = TEXT("../../Resources/Scenes/Map/ThroneRoo
 static const _tchar* DEFAULT_NAVDATA_PATH = TEXT("../../Resources/NavMesh/ThroneRoom.navdata");
 static const _tchar* HUD_SCENE_PATH = TEXT("../../Resources/Scenes/UI/HUD.uiscene");
 
+// 임시로 작성
+static void Build_DefaultThroneRoomLights(vector<SCENE_LIGHT>& SceneLights, const SCENE_DATA& SceneData, _bool bSceneDataLoaded)
+{
+	SceneLights.clear();
+
+	SCENE_LIGHT DirectionalLight{};
+	DirectionalLight.eType = LIGHT::DIRECTIONAL;
+	DirectionalLight.vDiffuse = _float4(1.f, 1.f, 1.f, 1.f);
+	DirectionalLight.vAmbient = _float4(0.20f, 0.22f, 0.25f, 1.f);
+	DirectionalLight.vSpecular = _float4(0.25f, 0.25f, 0.25f, 1.f);
+	DirectionalLight.vDirection = _float4(-0.5648625f, -0.8191520f, -0.0996005f, 0.f);
+	SceneLights.push_back(DirectionalLight);
+
+	_float3 vPointLightPosition = _float3(0.f, 3.f, 0.f);
+
+	if (true == bSceneDataLoaded)
+	{
+		if (const SPAWN_POINT* pPlayerSpawnPoint = CSceneSerializer::Find_FirstSpawnPoint(SceneData, SPAWN_TYPE::PLAYER))
+		{
+			vPointLightPosition = pPlayerSpawnPoint->vPosition;
+			vPointLightPosition.y += 3.f;
+			vPointLightPosition.z += 2.f;
+		}
+	}
+
+	SCENE_LIGHT PointLight{};
+	PointLight.eType = LIGHT::POINT;
+	PointLight.vPosition = _float4(vPointLightPosition.x, vPointLightPosition.y, vPointLightPosition.z, 1.f);
+	PointLight.fRange = 25.f;
+	PointLight.vDiffuse = _float4(0.85f, 0.75f, 0.55f, 1.f);
+	PointLight.vAmbient = _float4(0.08f, 0.07f, 0.05f, 1.f);
+	PointLight.vSpecular = _float4(0.25f, 0.22f, 0.18f, 1.f);
+	SceneLights.push_back(PointLight);
+}
+
 _bool CLevel_GamePlay::Apply_PlayerSpawnFromCell(CPlayer::PLAYER_DESC& Desc, CNavMesh* pNavMesh, _int iCellIndex)
 {
 	if (nullptr == pNavMesh)
@@ -46,10 +81,10 @@ _bool CLevel_GamePlay::Apply_PlayerSpawnPoint(CPlayer::PLAYER_DESC& Desc, CNavMe
 
 	if (nullptr != pNavMesh)
 	{
-		if (NAVMESH_INVALID_INDEX == Desc.iStartCellIndex)
+		if (INVALID_INDEX == Desc.iStartCellIndex)
 			Desc.iStartCellIndex = pNavMesh->Find_Cell(Desc.vPosition);
 
-		if (NAVMESH_INVALID_INDEX == Desc.iStartCellIndex)
+		if (INVALID_INDEX == Desc.iStartCellIndex)
 			return false;
 
 		Desc.vPosition.y = pNavMesh->Compute_Height(Desc.iStartCellIndex, Desc.vPosition);
@@ -114,10 +149,10 @@ _bool CLevel_GamePlay::Apply_MonsterSpawnPoint(CMonster::MONSTER_DESC& Desc, CNa
 
 	if (nullptr != pNavMesh)
 	{
-		if (NAVMESH_INVALID_INDEX == Desc.iStartCellIndex)
+		if (INVALID_INDEX == Desc.iStartCellIndex)
 			Desc.iStartCellIndex = pNavMesh->Find_Cell(Desc.vPosition);
 
-		if (NAVMESH_INVALID_INDEX == Desc.iStartCellIndex)
+		if (INVALID_INDEX == Desc.iStartCellIndex)
 			return false;
 
 		Desc.vPosition.y = pNavMesh->Compute_Height(Desc.iStartCellIndex, Desc.vPosition);
@@ -287,51 +322,30 @@ HRESULT CLevel_GamePlay::Ready_SceneData()
 
 HRESULT CLevel_GamePlay::Ready_Lights()
 {
-	LIGHT_DESC LightDesc{};
+	vector<SCENE_LIGHT> DefaultLights;
+	const vector<SCENE_LIGHT>* pSceneLights = &m_SceneData.SceneLights;
 
-	LightDesc.eType = LIGHT::DIRECTIONAL;
-	LightDesc.vDiffuse = _float4(1.f, 1.f, 1.f, 1.f);
-	LightDesc.vAmbient = _float4(0.20f, 0.22f, 0.25f, 1.f);
-	//LightDesc.vSpecular = _float4(0.7924528f, 0.7924528f, 0.7924528f, 1.f);
-	LightDesc.vSpecular = _float4(0.25f, 0.25f, 0.25f, 1.f);
-
-	// ThroneRoom Fog_ThroneR_01 sunDirection = (55, 260, 0) converted to engine light direction.
-	LightDesc.vDirection = _float4(-0.5648625f, -0.8191520f, -0.0996005f, 0.f);
-
-	if (FAILED(m_pGameInstance->Add_Light(LightDesc)))
-		return E_FAIL;
-
-
-	// 임시 
-	LIGHT_DESC PointLightDesc{};
-
-	PointLightDesc.eType = LIGHT::POINT;
-	_float3 vPointLightPosition = _float3(0.f, 3.f, 0.f);
-
-	if (m_bSceneDataLoaded)
+	if (false == m_bSceneDataLoaded || true == m_SceneData.SceneLights.empty())
 	{
-		if (const SPAWN_POINT* pPlayerSpawnPoint = CSceneSerializer::Find_FirstSpawnPoint(m_SceneData, SPAWN_TYPE::PLAYER))
-		{
-			vPointLightPosition = pPlayerSpawnPoint->vPosition;
-			vPointLightPosition.y += 3.f;
-			vPointLightPosition.z += 2.f;
-		}
+		Build_DefaultThroneRoomLights(DefaultLights, m_SceneData, m_bSceneDataLoaded);
+		pSceneLights = &DefaultLights;
 	}
 
-	PointLightDesc.vPosition = _float4(
-		vPointLightPosition.x,
-		vPointLightPosition.y,
-		vPointLightPosition.z,
-		1.f
-	);	
-	PointLightDesc.fRange = 25.f;
-	PointLightDesc.vDiffuse = _float4(0.85f, 0.75f, 0.55f, 1.f);
-	PointLightDesc.vAmbient = _float4(0.08f, 0.07f, 0.05f, 1.f);
-	//PointLightDesc.vSpecular = _float4(0.8f, 0.7f, 0.55f, 1.f);
-	PointLightDesc.vSpecular = _float4(0.25f, 0.22f, 0.18f, 1.f);
+	for (const SCENE_LIGHT& SceneLight : *pSceneLights)
+	{
+		LIGHT_DESC LightDesc{};
 
-	if (FAILED(m_pGameInstance->Add_Light(PointLightDesc)))
-		return E_FAIL;
+		LightDesc.eType = SceneLight.eType;
+		LightDesc.vDiffuse = SceneLight.vDiffuse;
+		LightDesc.vAmbient = SceneLight.vAmbient;
+		LightDesc.vSpecular = SceneLight.vSpecular;
+		LightDesc.vDirection = SceneLight.vDirection;
+		LightDesc.vPosition = SceneLight.vPosition;
+		LightDesc.fRange = SceneLight.fRange;
+
+		if (FAILED(m_pGameInstance->Add_Light(LightDesc)))
+			return E_FAIL;
+	}
 
 	return S_OK;
 }
@@ -450,7 +464,7 @@ HRESULT CLevel_GamePlay::Ready_Layer_Player(const _wstring& strLayerTag)
 	CNavMesh* pNavMesh = Find_GamePlayNavMesh();
 
 	Desc.pNavMesh = pNavMesh;
-	Desc.iStartCellIndex = NAVMESH_INVALID_INDEX;
+	Desc.iStartCellIndex = INVALID_INDEX;
 
 	Desc.vPosition = _float3(0.f, 1.f, 0.f);
 	Desc.vRotationDeg = _float3(0.f, 0.f, 0.f);

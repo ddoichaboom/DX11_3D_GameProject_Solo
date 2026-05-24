@@ -64,6 +64,7 @@ namespace Client
 		SKILL_Q,
 		SKILL_E,
 		SKILL_R,
+		QTE_EXTREME_DASH,
 		END
 	};
 
@@ -270,6 +271,12 @@ namespace Client
 		FRONT_BOX,
 		FRONT_SPHERE,
 		END
+	};
+
+	enum class QTE_TYPE
+	{ 
+		EXTREME_DASH, 
+		END 
 	};
 }
 #endif // Client_Enum_h__

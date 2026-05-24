@@ -86,3 +86,9 @@ BlendState BS_Blend
     DestBlend = One;
     BlendOp = Add;
 };
+
+BlendState BS_AlphaOnly
+{
+    BlendEnable[0] = false;
+    RenderTargetWriteMask[0] = 0x08;        // Alpha 채널만 기록 ( RGB 보존 )
+};

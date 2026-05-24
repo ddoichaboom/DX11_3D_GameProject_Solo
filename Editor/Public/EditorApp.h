@@ -49,6 +49,11 @@ private:
 	HRESULT					Ready_BootScene();
 
 #pragma endregion 
+
+#pragma region CAMERA
+private:
+	void					Set_CameraActive(const _wstring& strCameraTag, _bool bActive);
+#pragma endregion 
 private:
 	ID3D11Device*			m_pDevice				= { nullptr };
 	ID3D11DeviceContext*	m_pContext				= { nullptr };

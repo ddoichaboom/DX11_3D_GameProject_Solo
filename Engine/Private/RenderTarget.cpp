@@ -12,6 +12,9 @@ CRenderTarget::CRenderTarget(ID3D11Device* pDevice, ID3D11DeviceContext* pContex
 
 HRESULT CRenderTarget::Initialize(_uint iWidth, _uint iHeight, DXGI_FORMAT ePixelFormat, const _float4& vClearColor)
 {
+    m_iWidth = iWidth;
+    m_iHeight = iHeight;
+    m_ePixelFormat = ePixelFormat;
     m_vClearColor = vClearColor;
 
     D3D11_TEXTURE2D_DESC TextureDesc{};
@@ -39,6 +42,21 @@ HRESULT CRenderTarget::Initialize(_uint iWidth, _uint iHeight, DXGI_FORMAT ePixe
     return S_OK;
 }
 
+HRESULT CRenderTarget::Resize(_uint iWidth, _uint iHeight)
+{
+    if (0 == iWidth || 0 == iHeight)
+        return E_FAIL;
+
+    if (iWidth == m_iWidth && iHeight == m_iHeight)
+        return S_OK;
+
+    Safe_Release(m_pSRV);
+    Safe_Release(m_pRTV);
+    Safe_Release(m_pTexture2D);
+
+    return Initialize(iWidth, iHeight, m_ePixelFormat, m_vClearColor);
+}
+
 void CRenderTarget::Clear()
 {
     if (nullptr == m_pContext || nullptr == m_pRTV)
@@ -57,19 +75,14 @@ HRESULT CRenderTarget::Bind_ShaderResource(CShader* pShader, const _char* pConst
 
 #ifdef _DEBUG
 
-HRESULT CRenderTarget::Ready_Debug(_float fX, _float fY, _float fSizeX, _float fSizeY)
+HRESULT CRenderTarget::Ready_Debug(_float fX, _float fY, _float fSizeX, _float fSizeY, _float fCanvasWidth, _float fCanvasHeight)
 {
-    CGameInstance* pGameInstance = CGameInstance::GetInstance();
-
-    const _float fWinSizeX = static_cast<_float>(pGameInstance->Get_WinSizeX());
-    const _float fWinSizeY = static_cast<_float>(pGameInstance->Get_WinSizeY());
-
     XMStoreFloat4x4(
         &m_WorldMatrix,
         XMMatrixScaling(fSizeX, fSizeY, 1.f) *
         XMMatrixTranslation(
-            fX - fWinSizeX * 0.5f,
-            -fY + fWinSizeY * 0.5f,
+            fX - fCanvasWidth * 0.5f,
+            -fY + fCanvasHeight * 0.5f,
             0.f));
 
     return S_OK;

@@ -12,6 +12,9 @@ private:
 
 public:
 	const LIGHT_DESC*			Get_LightDesc(_uint iIndex);
+	_uint						Get_NumLights() const { return static_cast<_uint>(m_Lights.size()); }
+
+public:
 	HRESULT						Add_Light(const LIGHT_DESC& LightDesc);
 	HRESULT                     Render(class CShader* pShader, class CVIBuffer_Rect* pVIBuffer);
 

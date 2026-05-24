@@ -25,7 +25,7 @@ CMonster::CMonster(const CMonster& Prototype)
 _int CMonster::Get_CurrentNavCellIndex() const
 {
     if (nullptr == m_pNavigationAgent)
-        return NAVMESH_INVALID_INDEX;
+        return INVALID_INDEX;
 
     return  m_pNavigationAgent->Get_CurrentCellIndex();
 }
@@ -292,7 +292,7 @@ HRESULT CMonster::Ready_Components(const MONSTER_DESC& Desc)
 
     if (nullptr != m_pNavigationAgent &&
         m_pNavigationAgent->Has_NavMesh() &&
-        NAVMESH_INVALID_INDEX == m_pNavigationAgent->Get_CurrentCellIndex())
+        INVALID_INDEX == m_pNavigationAgent->Get_CurrentCellIndex())
     {
         _float3 vPosition{};
         XMStoreFloat3(&vPosition, m_pTransformCom->Get_State(STATE::POSITION));

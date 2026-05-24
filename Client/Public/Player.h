@@ -24,7 +24,7 @@ public:
     typedef struct tagPlayerDesc : public CGameObject::GAMEOBJECT_DESC
     {
         CNavMesh* pNavMesh = { nullptr };
-        _int  iStartCellIndex = { NAVMESH_INVALID_INDEX };
+        _int  iStartCellIndex = { INVALID_INDEX };
     }PLAYER_DESC;
 
 private:
@@ -42,7 +42,7 @@ public:
     _float                  Get_MaxMP() const { return m_fMaxMP; }
     _float                  Get_CurrentMP() const { return m_fCurrentMP; }
 
-    void                    Take_Damage(_float fAmount);
+    void                    Take_Damage(_float fAmount, class CMonster* pAttacker = nullptr);
     _bool                   Try_GetDashHUDWorldPosition(_float3* pOutPosition) const;
 
     _bool                   Try_Teleport(_float fSearchRadius, _float fConeAngleDegrees);
@@ -92,7 +92,7 @@ public:
     _float                  Get_SkillFCooldownTimer() const { return m_fSkillFCooldownTimer; }
     _float                  Get_SkillFCooldownMax()   const { return SKILL_F_COOLDOWN; }
 
-    void                    Enter_FloatReaction(CHARACTER_ACTION eFloatAction);
+    void                    Enter_FloatReaction(CHARACTER_ACTION eFloatAction, class CMonster* pAttacker = nullptr);
 
     void                    Enable_SkillCollider(_bool bEnable);
     void                    Set_SkillColliderRadius(_float fRadius);
@@ -101,8 +101,13 @@ public:
     void                    Set_SkillColliderForwardOffset(_float fOffset) { m_fSkillColliderForwardOffset = fOffset; }
     _bool                   Is_SkillColliderActive() const { return m_bSkillColliderActive; }
 
-    void                    Set_Invincible(_bool bInvincible) { m_bInvincible = bInvincible; }
+    void                    Set_Invincible(_bool bInvincible);
     _bool                   Is_Invincible() const { return m_bInvincible; }
+
+    _bool                   Is_QTEWindowActive() const { return false == m_QTEWindows.empty(); }
+    QTE_TYPE                Get_LatestQTEType() const { return m_QTEWindows.back().eType; } 
+    _bool                   Is_QTEOnCooldown(QTE_TYPE eType) const { return m_fQTECooldown[static_cast<int>(eType)] > 0.f; }
+    void                    Consume_LatestQTEWindow();
 
 private:
     _uint                   m_iState = {};
@@ -162,6 +167,10 @@ private:
 
     _bool                   Is_AerialAction() const;
 
+    void                    Open_QTEWindow(class CMonster* pAttacker);
+    void                    On_DodgeSucceeded(class CMonster* pAttacker);
+    void                    Tick_QTEWindow(_float fTimeDelta);
+
     HRESULT                 Ready_SkillCollider(); 
     void                    Update_SkillCollider();
     void                    On_SkillColliderHit(CCollider* pOther);
@@ -171,6 +180,7 @@ private:
 
     class CMonster*         Find_Target(_float fSearchRadius, _float fConeAngleDegrees) const;
     void                    Teleport_BehindTarget(class CMonster* pTarget);
+
 
 
 private:
@@ -215,6 +225,7 @@ private:
 
     _bool                   m_bSkillColliderActive = { false };
     _bool                   m_bInvincible = { false };
+    _bool                   m_bDodgeConsumedThisInvincible = { false };
 
     _float                  m_fSkillColliderForwardOffset = { 1.5f };
     _float                  m_fSkillColliderRadius = { 1.5f };
@@ -225,6 +236,21 @@ private:
     _float                  m_fKasakaPhase2Radius = { 3.0f };
     _float                  m_fKasakaPhase2Damage = { 30.f };
     _float                  m_fKasakaPhase2ForwardOffset = { 0.0f };
+
+    struct QTE_WINDOW
+    {
+        QTE_TYPE            eType = QTE_TYPE::EXTREME_DASH;
+        _float              fTimer = { 0.f };
+        class CMonster*     pAttacker = { nullptr };
+    };
+
+    static constexpr _int   QTE_TYPE_COUNT = ETOI(QTE_TYPE::END);
+
+    vector<QTE_WINDOW>      m_QTEWindows;
+    _float                  m_fQTECooldown[QTE_TYPE_COUNT] = {};
+
+    static constexpr _float QTE_WINDOW_DURATION = { 3.0f };
+    static constexpr _float QTE_COOLDOWN[QTE_TYPE_COUNT] = { 5.0f };
 
 public:
     static CPlayer*         Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

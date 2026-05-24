@@ -37,8 +37,7 @@ HRESULT CCamera_Free::Initialize(void* pArg)
 
 void CCamera_Free::Priority_Update(_float fTimeDelta)
 {
-
-	if (false == m_pGameInstance->Is_GameLogic_Frozen())
+	if (false == Is_ActiveCamera())
 		return;
 
 	const _bool bFastMove = (m_pGameInstance->Get_KeyState(VK_SHIFT) & 0x80) != 0;
@@ -99,7 +98,7 @@ void CCamera_Free::Priority_Update(_float fTimeDelta)
 
 void CCamera_Free::Update(_float fTimeDelta)
 {
-	if (false == m_pGameInstance->Is_GameLogic_Frozen())
+	if (false == Is_ActiveCamera())
 		return;
 
 	__super::Update(fTimeDelta);
@@ -107,7 +106,7 @@ void CCamera_Free::Update(_float fTimeDelta)
 
 void CCamera_Free::Late_Update(_float fTimeDelta)
 {
-	if (false == m_pGameInstance->Is_GameLogic_Frozen())
+	if (false == Is_ActiveCamera())
 		return;
 
 	__super::Late_Update(fTimeDelta);

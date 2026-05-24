@@ -20,6 +20,19 @@ namespace
 			return "Unknown";
 		}
 	}
+
+	const _char* Get_LightTypeLabel(LIGHT eType)
+	{
+		switch (eType)
+		{
+		case LIGHT::DIRECTIONAL:
+			return "Directional";
+		case LIGHT::POINT:
+			return "Point";
+		default:
+			return "Unknown";
+		}
+	}
 }
 
 CPanel_NavMeshEditor::CPanel_NavMeshEditor(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -60,6 +73,13 @@ void CPanel_NavMeshEditor::Render()
 			bNavMeshMode ? EDITOR_TOOL_MODE::NAVMESH : EDITOR_TOOL_MODE::OBJECT);
 	}
 
+	_bool bLightMode = m_pPanel_Manager->Is_LightEditMode();
+	if (ImGui::Checkbox("Light Edit Mode", &bLightMode))
+	{
+		m_pPanel_Manager->Set_ToolMode(
+			bLightMode ? EDITOR_TOOL_MODE::LIGHT : EDITOR_TOOL_MODE::OBJECT);
+	}
+
 	ImGui::Separator();
 
 	if (ImGui::Button("Clear Picks"))
@@ -77,7 +97,7 @@ void CPanel_NavMeshEditor::Render()
 	if (bCreateDisabled)
 		ImGui::EndDisabled();
 
-	const _bool bNoCell = NAVMESH_INVALID_INDEX == m_pTool->Get_SelectedCellIndex();
+	const _bool bNoCell = INVALID_INDEX == m_pTool->Get_SelectedCellIndex();
 
 	if (bNoCell)
 		ImGui::BeginDisabled();
@@ -178,7 +198,7 @@ void CPanel_NavMeshEditor::Render()
 	}
 
 	const _bool bNoSpawnPoint = 0 == iNumSpawnPoints;
-	const _bool bNoSelectedSpawnPoint = NAVMESH_INVALID_INDEX == m_pTool->Get_SelectedSpawnPointIndex();
+	const _bool bNoSelectedSpawnPoint = INVALID_INDEX == m_pTool->Get_SelectedSpawnPointIndex();
 
 	if (false == bNoSelectedSpawnPoint)
 	{
@@ -256,6 +276,104 @@ void CPanel_NavMeshEditor::Render()
 
 	if (bNoSpawnPoint)
 		ImGui::EndDisabled();
+
+	// Light UI 
+	ImGui::Separator();
+	ImGui::TextDisabled("Scene Lights");
+
+	if (ImGui::Button("Add Directional"))
+		m_pTool->Add_DefaultDirectionalLight();
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Delete Selected Light"))
+		m_pTool->Delete_SelectedLight();
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Clear Lights"))
+		m_pTool->Clear_Lights();
+
+	const _uint iNumSceneLights = m_pTool->Get_NumSceneLights();
+
+	if (0 < iNumSceneLights)
+	{
+		ImGui::BeginChild("SceneLightList", ImVec2(0.f, 96.f), true);
+
+		for (_uint i = 0; i < iNumSceneLights; ++i)
+		{
+			const SCENE_LIGHT* pLight = m_pTool->Get_SceneLight(i);
+			if (nullptr == pLight)
+				continue;
+
+			_char szLabel[128] = {};
+			sprintf_s(
+				szLabel,
+				"%u. %s",
+				i,
+				Get_LightTypeLabel(pLight->eType));
+
+			if (ImGui::Selectable(szLabel, m_pTool->Get_SelectedLightIndex() == static_cast<_int>(i)))
+				m_pTool->Set_SelectedLightIndex(static_cast<_int>(i));
+		}
+
+		ImGui::EndChild();
+	}
+	else
+	{
+		ImGui::TextDisabled("No SceneLights.");
+	}
+
+	const _int iSelectedLight = m_pTool->Get_SelectedLightIndex();
+
+	if (INVALID_INDEX != iSelectedLight)
+	{
+		const SCENE_LIGHT* pSelectedLight = m_pTool->Get_SceneLight(static_cast<_uint>(iSelectedLight));
+
+		if (nullptr != pSelectedLight)
+		{
+			SCENE_LIGHT Light = *pSelectedLight;
+
+			ImGui::Separator();
+			ImGui::TextDisabled("Selected Light");
+
+			if (LIGHT::POINT == Light.eType)
+			{
+				_float3 vPosition = _float3(Light.vPosition.x, Light.vPosition.y, Light.vPosition.z);
+
+				if (ImGui::DragFloat3("Position", &vPosition.x, 0.1f, -1000.f, 1000.f, "%.2f"))
+				{
+					Light.vPosition = _float4(vPosition.x, vPosition.y, vPosition.z, 1.f);
+					m_pTool->Set_SelectedSceneLight(Light);
+				}
+
+				if (ImGui::DragFloat("Range", &Light.fRange, 0.1f, 0.1f, 100.f, "%.2f"))
+					m_pTool->Set_SelectedSceneLight(Light);
+			}
+			else if (LIGHT::DIRECTIONAL == Light.eType)
+			{
+				_float3 vDirection = _float3(Light.vDirection.x, Light.vDirection.y, Light.vDirection.z);
+
+				if (ImGui::DragFloat3("Direction", &vDirection.x, 0.01f, -1.f, 1.f, "%.3f"))
+				{
+					_vector vDir = XMVector3Normalize(XMLoadFloat3(&vDirection));
+					XMStoreFloat3(&vDirection, vDir);
+
+					Light.vDirection = _float4(vDirection.x, vDirection.y, vDirection.z, 0.f);
+					m_pTool->Set_SelectedSceneLight(Light);
+				}
+			}
+
+			if (ImGui::ColorEdit4("Diffuse", &Light.vDiffuse.x))
+				m_pTool->Set_SelectedSceneLight(Light);
+
+			if (ImGui::ColorEdit4("Ambient", &Light.vAmbient.x))
+				m_pTool->Set_SelectedSceneLight(Light);
+
+			if (ImGui::ColorEdit4("Specular", &Light.vSpecular.x))
+				m_pTool->Set_SelectedSceneLight(Light);
+		}
+	}
 
 	if (ImGui::Button("Save SceneData"))
 		m_pTool->Save_SceneData();

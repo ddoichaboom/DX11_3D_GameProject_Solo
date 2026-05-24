@@ -42,13 +42,13 @@ void CNavigationAgent::Bind_NavMesh(CNavMesh* pNavMesh)
     m_pNavMesh = pNavMesh;
     Safe_AddRef(m_pNavMesh);
 
-    m_iCurrentCellIndex = NAVMESH_INVALID_INDEX;
+    m_iCurrentCellIndex = INVALID_INDEX;
 }
 
 void CNavigationAgent::UnBind_NavMesh()
 {
     Safe_Release(m_pNavMesh);
-    m_iCurrentCellIndex = NAVMESH_INVALID_INDEX;
+    m_iCurrentCellIndex = INVALID_INDEX;
 }
 
 _bool CNavigationAgent::Try_Move(const _float3& vCandidatePosition, _float3* pOutAdjustedPosition)
@@ -66,7 +66,7 @@ _bool CNavigationAgent::Find_CurrentCell(const _float3& vPosition)
 
     m_iCurrentCellIndex = m_pNavMesh->Find_Cell(vPosition);
 
-    return NAVMESH_INVALID_INDEX != m_iCurrentCellIndex;
+    return INVALID_INDEX != m_iCurrentCellIndex;
 }
 
 CNavigationAgent* CNavigationAgent::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -100,5 +100,5 @@ void CNavigationAgent::Free()
     __super::Free();
 
     Safe_Release(m_pNavMesh);
-    m_iCurrentCellIndex = NAVMESH_INVALID_INDEX;
+    m_iCurrentCellIndex = INVALID_INDEX;
 }

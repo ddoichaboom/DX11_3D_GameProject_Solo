@@ -2,6 +2,20 @@
 #include "Player.h"
 #include "HUD_GamePlay.h"
 
+namespace
+{
+    CHARACTER_ACTION Get_QTEAction(QTE_TYPE eType)
+    {
+        switch (eType)
+        {
+        case QTE_TYPE::EXTREME_DASH: 
+            return CHARACTER_ACTION::QTE_EXTREME_DASH;
+        default:                     
+            return CHARACTER_ACTION::END;
+        }
+    }
+}
+
 CPlayer_StateMachine::CPlayer_StateMachine()
 {
 }
@@ -235,6 +249,29 @@ void CPlayer_StateMachine::Update_Skills(const PLAYER_INTENT_FRAME& Intent)
     if (nullptr == m_pOwner)
         return;
 
+    if (true == Intent.bQTERequested && true == m_pOwner->Is_QTEWindowActive())
+    {
+        const QTE_TYPE eQTEType = m_pOwner->Get_LatestQTEType();   // 최근 윈도우만 확인
+
+        // 쿨다운 중이면 발동하지 않고 무시 (윈도우는 만료까지 유지)
+        if (true == m_pOwner->Is_QTEOnCooldown(eQTEType))
+            return;
+
+        const CHARACTER_ACTION eAction = Get_QTEAction(eQTEType);
+
+        m_pOwner->Try_Teleport(12.f, 360.f);   // 재스캔(안전). 캐시 attacker 댕글링 회피
+        if (true == Try_Action(eAction))
+        {
+            m_pOwner->Consume_LatestQTEWindow();   // 최근 1개 pop + 쿨다운 시작
+#ifdef _DEBUG
+            OutputDebugStringA("[QTE] Counter EXECUTED - QTE_ExtremeDash\n");
+#endif
+            if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+                pHUD->Notify_CombatInput();
+        }
+        return;
+    }
+    
     // C 키 — 무기 스왑
     if (true == Intent.bWeaponSwapRequested && true == m_pOwner->Can_WeaponSwap())
     {
@@ -454,11 +491,15 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                     && CHARACTER_ACTION_STEP::LOOP == eCurStep
                     && EQUIPPED_WEAPON_ID::KNIGHT_KILLER == eEq);
 
+                const _bool bQTE = (CHARACTER_ACTION::QTE_EXTREME_DASH == eCur);
+
                 const _bool bKasaka_Slam = (CHARACTER_ACTION::SKILL_F == eCur
                     && CHARACTER_ACTION_STEP::NONE == eCurStep
                     && EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eEq);
 
-                if (true == bKK_Loop || true == bKasaka_Slam)
+                const _bool bWeaponSwap = (CHARACTER_ACTION::WEAPON_SWAP == eCur);
+
+                if (true == bKK_Loop || true == bKasaka_Slam || true == bQTE || true == bWeaponSwap)
                 {
                     const _uint iCur = Make_PlayerStateKey(eCur, eCurStep);
 
@@ -518,7 +559,10 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                     && CHARACTER_ACTION_STEP::NONE == eCurStep
                     && EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eEq);
 
-                if (true == bKK_Loop || true == bKasaka_Slam)
+                const _bool bQTE = (CHARACTER_ACTION::QTE_EXTREME_DASH == eCur);
+                const _bool bWeaponSwap = (CHARACTER_ACTION::WEAPON_SWAP == eCur);
+
+                if (true == bKK_Loop || true == bKasaka_Slam || true == bQTE || true == bWeaponSwap)
                 {
                     m_pOwner->Enable_SkillCollider(false);
                     break;

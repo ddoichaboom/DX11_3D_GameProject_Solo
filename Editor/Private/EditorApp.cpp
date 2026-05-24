@@ -8,6 +8,8 @@
 #include "SpringArm.h"
 #include "Panel_2DCanvas.h"
 #include "UICanvasTool.h"
+#include "Layer.h"
+#include "Camera.h"
 
 
 CEditorApp::CEditorApp()
@@ -300,12 +302,17 @@ HRESULT CEditorApp::Ready_Panels()
 
 HRESULT CEditorApp::Render_Scene()
 {
-	// Viewport 패널의 별도 RenderTarget으로 전환 + Clear
 	if (FAILED(m_pViewport->Begin_RT()))
-		return S_OK;		// RT 없으면 스킵
+		return S_OK;
 
-	// 3D 오브젝트 렌더
-	m_pGameInstance->Draw();
+	if (FAILED(m_pGameInstance->Draw()))
+	{
+#ifdef _DEBUG
+		OutputDebugString(TEXT("[EditorApp] GameInstance::Draw failed in Render_Scene.\n"));
+#endif
+		m_pViewport->End_RT();
+		return E_FAIL;
+	}
 
 	if (m_pPanel_Manager->Is_UICanvasMode())
 	{
@@ -319,8 +326,8 @@ HRESULT CEditorApp::Render_Scene()
 		}
 	}
 
-	// RT 바인딩 해제
-	m_pViewport->End_RT();
+	if (FAILED(m_pViewport->End_RT()))
+		return E_FAIL;
 
 	return S_OK;
 }
@@ -388,6 +395,35 @@ HRESULT CEditorApp::Ready_BootScene()
 
 #pragma endregion
 
+#pragma region CAMERA
+
+void CEditorApp::Set_CameraActive(const _wstring& strCameraTag, _bool bActive)
+{
+	const auto* pLayers = m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+	if (nullptr == pLayers)
+		return;
+
+	auto iterLayer = pLayers->find(TEXT("Layer_Camera"));
+	if (iterLayer == pLayers->end() || nullptr == iterLayer->second)
+		return;
+
+	const list<CGameObject*>& Cameras = iterLayer->second->Get_GameObjects();
+
+	for (CGameObject* pObject : Cameras)
+	{
+		if (nullptr == pObject)
+			continue;
+
+		if (pObject->Get_Tag() != strCameraTag)
+			continue;
+
+		if (CCamera* pCamera = dynamic_cast<CCamera*>(pObject))
+			pCamera->Set_ActiveCamera(bActive);
+	}
+}
+
+#pragma endregion
+
 void CEditorApp::Bootstrap_EditScene()
 {
 	// Camera_Free 인스턴스 
@@ -418,6 +454,12 @@ void CEditorApp::Apply_Mode()
 {
 	m_pGameInstance->Set_GameLogic_Frozen(m_bEditMode);
 	m_pGameInstance->Set_CursorLocked(!m_bEditMode);
+
+	Set_CameraActive(TEXT("Follow"), false == m_bEditMode);
+	Set_CameraActive(TEXT("Free"), true == m_bEditMode);
+
+	if (nullptr != m_pViewport)
+		m_pViewport->Resize_ActiveCameraProjection();
 }
 
 CEditorApp* CEditorApp::Create(HWND hWnd, HINSTANCE hInstance, _uint iWinSizeX, _uint iWinSizeY)

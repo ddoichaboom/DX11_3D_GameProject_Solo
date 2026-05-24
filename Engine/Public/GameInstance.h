@@ -83,11 +83,18 @@ public:
 	HRESULT                     Bind_RT_ShaderResource(const _wstring& strTargetTag,
 														class CShader* pShader,
 														const _char* pConstantName);
+	HRESULT						Begin_ViewportRT(_uint iWidth, _uint iHeight);
+	HRESULT						End_ViewportRT();
+	ID3D11ShaderResourceView*	Get_ViewportSRV();
+
+	HRESULT						Resize_RenderTargets(_uint iWidth, _uint iHeight);
+
 
 #ifdef _DEBUG
 	HRESULT						Ready_RT_Debug(const _wstring& strTargetTag,
 												_float fX, _float fY,
-												_float fSizeX, _float fSizeY);
+												_float fSizeX, _float fSizeY,
+												_float fCanvasWidth, _float fCanvasHeight);
 
 	HRESULT                     Render_RT_Debug(const _wstring& strMRTTag,
 												class CShader* pShader,
@@ -141,6 +148,7 @@ public:
 	const LIGHT_DESC*			Get_LightDesc(_uint iIndex);
 	HRESULT						Add_Light(const LIGHT_DESC& LightDesc);
 	HRESULT                     Render_Light(class CShader* pShader, class CVIBuffer_Rect* pVIBuffer);
+	_uint						Get_NumLights() const;
 #pragma endregion
 
 #pragma region Font_MANAGER

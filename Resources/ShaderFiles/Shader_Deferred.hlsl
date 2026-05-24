@@ -76,9 +76,9 @@ struct PS_OUT_LIGHT
 };
 
 PS_OUT_LIGHT PS_MAIN_DIRECTIONAL(PS_IN In)
-{
+{    
     PS_OUT_LIGHT Out = (PS_OUT_LIGHT) 0;
-
+    
     vector vNormalDesc = g_NormalTexture.Sample(LinearSampler, In.vTexcoord);
     vector vDepthDesc = g_DepthTexture.Sample(LinearSampler, In.vTexcoord);
     float fViewZ = vDepthDesc.y * 500.f;
@@ -172,6 +172,62 @@ PS_OUT_BACKBUFFER PS_MAIN_COMBINED(PS_IN In)
     return Out;
 }
 
+PS_OUT_BACKBUFFER PS_MAIN_COMBINED_DIFFUSE(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+
+    Out.vBackBuffer = g_DiffuseTexture.Sample(LinearSampler, In.vTexcoord);
+
+    return Out;
+}
+
+PS_OUT_BACKBUFFER PS_MAIN_COMBINED_NORMAL(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+
+    Out.vBackBuffer = g_NormalTexture.Sample(LinearSampler, In.vTexcoord);
+
+    return Out;
+}
+
+PS_OUT_BACKBUFFER PS_MAIN_COMBINED_DEPTH(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+
+    vector vDepth = g_DepthTexture.Sample(LinearSampler, In.vTexcoord);
+
+    Out.vBackBuffer = float4(vDepth.xxx, 1.f);
+
+    return Out;
+}
+
+PS_OUT_BACKBUFFER PS_MAIN_COMBINED_SHADE(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+
+    Out.vBackBuffer = g_ShadeTexture.Sample(LinearSampler, In.vTexcoord);
+
+    return Out;
+}
+
+PS_OUT_BACKBUFFER PS_MAIN_COMBINED_SPECULAR(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+
+    Out.vBackBuffer = g_SpecularTexture.Sample(LinearSampler, In.vTexcoord);
+
+    return Out;
+}
+
+PS_OUT_BACKBUFFER PS_MAIN_FORCE_ALPHA(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+    Out.vBackBuffer = float4(0.f, 0.f, 0.f, 1.f);
+    
+    return Out;
+
+}
+
 technique11 DefaultTechnique
 {
     pass Debug
@@ -212,5 +268,65 @@ technique11 DefaultTechnique
 
         VertexShader = compile vs_5_0 VS_MAIN();
         PixelShader = compile ps_5_0 PS_MAIN_COMBINED();
+    }
+
+    pass Combined_Diffuse
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_COMBINED_DIFFUSE();
+    }
+
+    pass Combined_Normal
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_COMBINED_NORMAL();
+    }
+
+    pass Combined_Depth
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_COMBINED_DEPTH();
+    }
+
+    pass Combined_Shade
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_COMBINED_SHADE();
+    }
+
+    pass Combined_Specular
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_COMBINED_SPECULAR();
+    }
+
+    pass ForceAlpha
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_AlphaOnly, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_FORCE_ALPHA();
     }
 }

@@ -40,7 +40,7 @@ private:
 private:
 	const vector<_float3>*		m_pVertices = { nullptr };
 	NAVMESH_CELL				m_Cell = {};
-	_int						m_iCellIndex = { NAVMESH_INVALID_INDEX };
+	_int						m_iCellIndex = { INVALID_INDEX };
 	_float4						m_vPlane = { 0.f, 1.f, 0.f, 0.f };
 
 public:

@@ -290,13 +290,59 @@ HRESULT CGameInstance::Bind_RT_ShaderResource(const _wstring& strTargetTag, CSha
 	return m_pTarget_Manager->Bind_ShaderResource(strTargetTag, pShader, pConstantName);
 }
 
-#ifdef _DEBUG
-HRESULT CGameInstance::Ready_RT_Debug(const _wstring& strTargetTag, _float fX, _float fY, _float fSizeX, _float fSizeY)
+HRESULT CGameInstance::Begin_ViewportRT(_uint iWidth, _uint iHeight)
 {
 	if (nullptr == m_pTarget_Manager)
 		return E_FAIL;
 
-	return m_pTarget_Manager->Ready_Debug(strTargetTag, fX, fY, fSizeX, fSizeY);
+	return m_pTarget_Manager->Begin_ViewportRT(iWidth, iHeight);
+}
+
+HRESULT CGameInstance::End_ViewportRT()
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->End_ViewportRT();
+}
+
+ID3D11ShaderResourceView* CGameInstance::Get_ViewportSRV()
+{
+	if (nullptr == m_pTarget_Manager)
+		return nullptr;
+
+	return m_pTarget_Manager->Get_RenderTargetSRV(TEXT("Target_Viewport"));
+}
+
+HRESULT CGameInstance::Resize_RenderTargets(_uint iWidth, _uint iHeight)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	if (FAILED(m_pTarget_Manager->Resize_RenderTargets(iWidth, iHeight)))
+		return E_FAIL;
+
+	if (nullptr != m_pRenderer)
+	{
+		if (FAILED(m_pRenderer->Resize(iWidth, iHeight)))
+			return E_FAIL;
+
+#ifdef _DEBUG
+		if (FAILED(m_pRenderer->Resize_DebugRenderTargets(iWidth, iHeight)))
+			return E_FAIL;
+#endif 
+	}
+
+	return S_OK;
+}
+
+#ifdef _DEBUG
+HRESULT CGameInstance::Ready_RT_Debug(const _wstring& strTargetTag,	_float fX, _float fY, _float fSizeX, _float fSizeY,	_float fCanvasWidth, _float fCanvasHeight)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->Ready_Debug(strTargetTag, fX, fY, fSizeX, fSizeY, fCanvasWidth, fCanvasHeight);
 }
 HRESULT CGameInstance::Render_RT_Debug(const _wstring& strMRTTag, CShader* pShader, CVIBuffer_Rect* pVIBuffer)
 {
@@ -456,6 +502,14 @@ HRESULT	CGameInstance::Add_Light(const LIGHT_DESC& LightDesc)
 HRESULT CGameInstance::Render_Light(CShader* pShader, CVIBuffer_Rect* pVIBuffer)
 {
 	return m_pLight_Manager->Render(pShader, pVIBuffer);
+}
+
+_uint CGameInstance::Get_NumLights() const
+{
+	if (nullptr == m_pLight_Manager)
+		return 0;
+
+	return m_pLight_Manager->Get_NumLights();
 }
 
 #pragma endregion

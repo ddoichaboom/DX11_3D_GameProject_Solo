@@ -16,14 +16,18 @@ public:
     ID3D11RenderTargetView*     Get_RTV() const { return m_pRTV; }
     ID3D11ShaderResourceView*   Get_SRV() const { return m_pSRV; }
 
+    _uint                       Get_Width() const { return m_iWidth; }
+    _uint                       Get_Height() const { return m_iHeight; }
+
 public:
     HRESULT                     Initialize(_uint iWidth, _uint iHeight, DXGI_FORMAT ePixelFormat, const _float4& vClearColor);
+    HRESULT                     Resize(_uint iWidth, _uint iHeight);
     void                        Clear();
     HRESULT                     Bind_ShaderResource(CShader* pShader, const _char* pConstantName);
 
 #ifdef _DEBUG
 public:
-    HRESULT                     Ready_Debug(_float fX, _float fY, _float fSizeX, _float fSizeY);
+    HRESULT                     Ready_Debug(_float fX, _float fY, _float fSizeX, _float fSizeY, _float fCanvasWidth, _float fCanvasHeight);
     HRESULT                     Render_Debug(class CShader* pShader, class CVIBuffer_Rect* pVIBuffer);
 #endif
 
@@ -41,6 +45,10 @@ private:
 #ifdef _DEBUG
     _float4x4                   m_WorldMatrix = {};
 #endif
+
+    _uint                       m_iWidth = { };
+    _uint                       m_iHeight = { };
+    DXGI_FORMAT                 m_ePixelFormat = { DXGI_FORMAT_UNKNOWN };
 
 public:
     static CRenderTarget*       Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
