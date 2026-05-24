@@ -210,7 +210,7 @@ void CPanel_Viewport::Render()
 			else if (bLightEditMode)
 			{
 				if (nullptr != pNavMeshEditorTool)
-					pNavMeshEditorTool->Handle_LightViewportClick(m_fPickX, m_fPickY, m_iRTWidth, m_iRTHeight);
+					pNavMeshEditorTool->Handle_LightViewportClick(m_fPickX, m_fPickY, vImagePos, m_iRTWidth, m_iRTHeight);
 			}
 			else
 			{

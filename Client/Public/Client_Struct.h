@@ -134,6 +134,7 @@ namespace Client
 	typedef struct tagSceneLight
 	{
 		LIGHT                   eType = { LIGHT::DIRECTIONAL };
+		_tchar					szName[MAX_PATH] = {};
 
 		_float4                 vDiffuse = {};
 		_float4                 vAmbient = {};

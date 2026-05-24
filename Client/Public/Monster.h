@@ -63,6 +63,8 @@ public:
 	_float                      Get_MaxBreak() const { return m_fMaxBreak; }
 	_float                      Get_CurrentBreak() const { return m_fCurrentBreak; }
 
+	void						Force_Break();
+
 	void						Take_Damage(_float fAmount);
 
 	virtual void				Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_ACTION_STEP eFromStep,
@@ -137,6 +139,7 @@ protected:
 	_bool						m_bHasBreak = { false };
 	_float						m_fMaxBreak = { 1.f };
 	_float						m_fCurrentBreak = { 1.f };
+	_bool						m_bPreserveBreakOnCrashExit = { false };
 
 	_int						m_iLevel = { 1 };
 	_wstring					m_strDisplayName; 

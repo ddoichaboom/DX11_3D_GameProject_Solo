@@ -104,6 +104,10 @@ public:
     void                    Set_Invincible(_bool bInvincible);
     _bool                   Is_Invincible() const { return m_bInvincible; }
 
+    void                    Set_ParryWindow(_bool bActive) { m_bParryWindow = bActive; }
+    _bool                   Is_ParryWindow() const { return m_bParryWindow; }
+    void                    On_DamageBlocked(class CMonster* pAttacker);
+
     _bool                   Is_QTEWindowActive() const { return false == m_QTEWindows.empty(); }
     QTE_TYPE                Get_LatestQTEType() const { return m_QTEWindows.back().eType; } 
     _bool                   Is_QTEOnCooldown(QTE_TYPE eType) const { return m_fQTECooldown[static_cast<int>(eType)] > 0.f; }
@@ -226,6 +230,8 @@ private:
     _bool                   m_bSkillColliderActive = { false };
     _bool                   m_bInvincible = { false };
     _bool                   m_bDodgeConsumedThisInvincible = { false };
+
+    _bool                   m_bParryWindow = { false };
 
     _float                  m_fSkillColliderForwardOffset = { 1.5f };
     _float                  m_fSkillColliderRadius = { 1.5f };

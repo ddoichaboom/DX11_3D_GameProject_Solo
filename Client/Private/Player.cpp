@@ -53,6 +53,12 @@ void CPlayer::Take_Damage(_float fAmount, CMonster* pAttacker)
 		return;
 	}
 
+	if (true == m_bParryWindow)
+	{
+		On_DamageBlocked(pAttacker);
+		return;
+	}
+
 	if (m_fCurrentHP <= 0.f)
 		return;
 
@@ -1243,6 +1249,12 @@ void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction, CMonster* pAtta
 		return;
 	}
 
+	if (true == m_bParryWindow)
+	{
+		On_DamageBlocked(pAttacker);
+		return;
+	}
+
 	m_AttackHitTargets.clear();
 	m_bPrevAttackHitboxActive = false;
 
@@ -1278,6 +1290,22 @@ void CPlayer::Set_Invincible(_bool bInvincible)
 		m_bDodgeConsumedThisInvincible = false;
 
 	m_bInvincible = bInvincible;
+}
+
+void CPlayer::On_DamageBlocked(CMonster* pAttacker)
+{
+#ifdef _DEBUG
+	OutputDebugStringA("[Player] PARRY SUCCESS - nullify, break attacker, counter motion\n");
+#endif
+
+	if (nullptr != pAttacker)
+		pAttacker->Force_Break();
+
+	if (nullptr != m_pStateMachine)
+		m_pStateMachine->Enter_ParryCounter();
+
+	if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+		pHUD->Notify_CombatInput();
 }
 
 void CPlayer::Consume_LatestQTEWindow()

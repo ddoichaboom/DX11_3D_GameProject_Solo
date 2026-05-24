@@ -59,6 +59,7 @@ public:
 
 	_bool                           Is_ReactionLocked() const;
 	void                            Enter_FloatReaction(CHARACTER_ACTION eFloatAction);
+	void							Enter_ParryCounter();
 	void                            Update(_float fTimeDelta);
 	void                            Update_Reaction(const PLAYER_INTENT_FRAME& Intent);
 protected:

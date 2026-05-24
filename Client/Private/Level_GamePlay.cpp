@@ -26,6 +26,7 @@ static void Build_DefaultThroneRoomLights(vector<SCENE_LIGHT>& SceneLights, cons
 
 	SCENE_LIGHT DirectionalLight{};
 	DirectionalLight.eType = LIGHT::DIRECTIONAL;
+	wcscpy_s(DirectionalLight.szName, TEXT("Directional_Main"));
 	DirectionalLight.vDiffuse = _float4(1.f, 1.f, 1.f, 1.f);
 	DirectionalLight.vAmbient = _float4(0.20f, 0.22f, 0.25f, 1.f);
 	DirectionalLight.vSpecular = _float4(0.25f, 0.25f, 0.25f, 1.f);
@@ -46,6 +47,7 @@ static void Build_DefaultThroneRoomLights(vector<SCENE_LIGHT>& SceneLights, cons
 
 	SCENE_LIGHT PointLight{};
 	PointLight.eType = LIGHT::POINT;
+	wcscpy_s(PointLight.szName, TEXT("Point_Default_Player"));
 	PointLight.vPosition = _float4(vPointLightPosition.x, vPointLightPosition.y, vPointLightPosition.z, 1.f);
 	PointLight.fRange = 25.f;
 	PointLight.vDiffuse = _float4(0.85f, 0.75f, 0.55f, 1.f);
@@ -272,6 +274,10 @@ void CLevel_GamePlay::Update(_float fTimeDelta)
 
 	if (nullptr != pBossMonster)
 	{
+		if (m_pGameInstance->Get_KeyDown('5'))
+			//pBossMonster->Debug_TryAction(MONSTER_ACTION::CRASH, MONSTER_ACTION_STEP::START);
+			pBossMonster->Force_Break();
+
 		if (m_pGameInstance->Get_KeyDown('6'))
 			pBossMonster->Debug_TryAction(MONSTER_ACTION::SKILL_10, MONSTER_ACTION_STEP::START);
 

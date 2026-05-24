@@ -6,7 +6,7 @@ namespace
 {
     static constexpr char SCENEDATA_MAGIC[4] = { 'S', 'L', 'S', 'C' };
     static constexpr _uint SCENEDATA_VERSION_MIN = { 1 };
-    static constexpr _uint SCENEDATA_VERSION_LATEST = { 3 };
+    static constexpr _uint SCENEDATA_VERSION_LATEST = { 4 };
 
     HRESULT Write_SpawnPoint(CBinaryWriter& Writer, const SPAWN_POINT& Point)
     {
@@ -85,6 +85,9 @@ namespace
         if (FAILED(Writer.Write(iType)))
             return E_FAIL;
 
+        if (FAILED(Writer.WriteArray(Light.szName, sizeof(_tchar), MAX_PATH)))
+            return E_FAIL;
+
         if (FAILED(Writer.Write(Light.vDiffuse)))
             return E_FAIL;
 
@@ -106,7 +109,7 @@ namespace
         return S_OK;
     }
 
-    HRESULT Read_SceneLight(CBinaryReader& Reader, SCENE_LIGHT* pOutLight)
+    HRESULT Read_SceneLight(CBinaryReader& Reader, SCENE_LIGHT* pOutLight, _uint iVersion)
     {
         if (nullptr == pOutLight)
             return E_FAIL;
@@ -118,6 +121,16 @@ namespace
 
         if (iType >= static_cast<_uint>(LIGHT::END))
             return E_FAIL;
+
+        if (iVersion >= 4)
+        {
+            if (FAILED(Reader.ReadArray(pOutLight->szName, sizeof(_tchar), MAX_PATH)))
+                return E_FAIL;
+        }
+        else
+        {
+            pOutLight->szName[0] = 0;
+        }
 
         if (FAILED(Reader.Read(&pOutLight->vDiffuse)))
             return E_FAIL;
@@ -138,6 +151,7 @@ namespace
             return E_FAIL;
 
         pOutLight->eType = static_cast<LIGHT>(iType);
+        pOutLight->szName[MAX_PATH - 1] = 0;
 
         return S_OK;
     }
@@ -227,7 +241,6 @@ HRESULT CSceneSerializer::Load(const _tchar* pSceneDataPath, SCENE_DATA* pOutSce
     }
 
     SceneData.SceneLights.clear();
-    SceneData.SceneLights.resize(iNumSceneLights);
 
     if (iVersion >= 3)
     {
@@ -238,7 +251,7 @@ HRESULT CSceneSerializer::Load(const _tchar* pSceneDataPath, SCENE_DATA* pOutSce
 
         for (SCENE_LIGHT& Light : SceneData.SceneLights)
         {
-            if (FAILED(Read_SceneLight(Reader, &Light)))
+            if (FAILED(Read_SceneLight(Reader, &Light, iVersion)))
                 return E_FAIL;
         }
     }

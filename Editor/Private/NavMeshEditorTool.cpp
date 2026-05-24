@@ -105,9 +105,9 @@ void CNavMeshEditorTool::Handle_ViewportClick(_float fPickX, _float fPickY, _uin
 		Pick_EditPoint(fPickX, fPickY, iViewportWidth, iViewportHeight);
 }
 
-void CNavMeshEditorTool::Handle_LightViewportClick(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight)
+void CNavMeshEditorTool::Handle_LightViewportClick(_float fPickX, _float fPickY, const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight)
 {
-	Select_Light(fPickX, fPickY, iViewportWidth, iViewportHeight);
+	Select_Light(fPickX, fPickY, vImagePos, iViewportWidth, iViewportHeight);
 
 	if (INVALID_INDEX != m_iSelectedLightIndex)
 		return;
@@ -389,6 +389,7 @@ HRESULT CNavMeshEditorTool::Add_DefaultDirectionalLight()
 
 	SCENE_LIGHT Light{};
 	Light.eType = LIGHT::DIRECTIONAL;
+	wcscpy_s(Light.szName, TEXT("Directional_Main"));
 	Light.vDiffuse = _float4(1.f, 1.f, 1.f, 1.f);
 	Light.vAmbient = _float4(0.20f, 0.22f, 0.25f, 1.f);
 	Light.vSpecular = _float4(0.25f, 0.25f, 0.25f, 1.f);
@@ -531,6 +532,8 @@ HRESULT CNavMeshEditorTool::Load_SceneData()
 	}
 
 	m_SpawnPoints = SceneData.SpawnPoints;
+	m_SceneLights = SceneData.SceneLights;
+
 	m_iSelectedSpawnPointIndex = INVALID_INDEX;
 	m_iSelectedLightIndex = INVALID_INDEX;
 
@@ -1224,7 +1227,12 @@ void CNavMeshEditorTool::Render_Lights(const ImVec2& vImagePos, _uint iViewportW
 			bSelected ? 3.f : 2.f);
 
 		_char szLabel[64] = {};
-		sprintf_s(szLabel, "PointLight %u / R %.1f", i, Light.fRange);
+		sprintf_s(
+			szLabel,
+			"PointLight %u / Y %.1f / R %.1f",
+			i,
+			Light.vPosition.y,
+			Light.fRange);
 
 		pDrawList->AddText(
 			ImVec2(vScreenPosition.x + 10.f, vScreenPosition.y - 8.f),
@@ -1233,17 +1241,17 @@ void CNavMeshEditorTool::Render_Lights(const ImVec2& vImagePos, _uint iViewportW
 	}
 }
 
-void CNavMeshEditorTool::Select_Light(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight)
+void CNavMeshEditorTool::Select_Light(_float fPickX, _float fPickY, const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight)
 {
-	PICK_RESULT Result{};
+	m_iSelectedLightIndex = INVALID_INDEX;
 
-	if (false == Pick_Surface(fPickX, fPickY, iViewportWidth, iViewportHeight, &Result, true))
-	{
-		m_iSelectedLightIndex = INVALID_INDEX;
+	if (0 == iViewportWidth || 0 == iViewportHeight)
 		return;
-	}
 
-	static constexpr _float fPickRadius = { 1.0f };
+	static constexpr _float fPickRadiusPx = 14.f;
+	const _float fPickRadiusSq = fPickRadiusPx * fPickRadiusPx;
+
+	const ImVec2 vMouseScreen = ImVec2(vImagePos.x + fPickX, vImagePos.y + fPickY);
 
 	_int iSelected = INVALID_INDEX;
 	_float fNearestDistSq = FLT_MAX;
@@ -1255,13 +1263,20 @@ void CNavMeshEditorTool::Select_Light(_float fPickX, _float fPickY, _uint iViewp
 		if (LIGHT::POINT != Light.eType)
 			continue;
 
-		_float3 vLightPosition = _float3(Light.vPosition.x, Light.vPosition.y, Light.vPosition.z);
+		const _float3 vLightPosition = _float3(
+			Light.vPosition.x,
+			Light.vPosition.y,
+			Light.vPosition.z);
 
-		const _float fDX = vLightPosition.x - Result.vPosition.x;
-		const _float fDZ = vLightPosition.z - Result.vPosition.z;
-		const _float fDistSq = fDX * fDX + fDZ * fDZ;
+		ImVec2 vLightScreen{};
+		if (false == World_To_Viewport(vLightPosition, vImagePos, iViewportWidth, iViewportHeight, &vLightScreen))
+			continue;
 
-		if (fDistSq <= fPickRadius * fPickRadius && fDistSq < fNearestDistSq)
+		const _float fDX = vLightScreen.x - vMouseScreen.x;
+		const _float fDY = vLightScreen.y - vMouseScreen.y;
+		const _float fDistSq = fDX * fDX + fDY * fDY;
+
+		if (fDistSq <= fPickRadiusSq && fDistSq < fNearestDistSq)
 		{
 			fNearestDistSq = fDistSq;
 			iSelected = static_cast<_int>(i);
@@ -1284,9 +1299,32 @@ HRESULT CNavMeshEditorTool::Add_PointLight(_float fPickX, _float fPickY, _uint i
 		return E_FAIL;
 	}
 
+	_float3 vLightPosition = Result.vPosition;
+	_bool bSnappedToNavVertex = false;
+
+	if (ImGui::IsKeyDown(ImGuiMod_Ctrl))
+	{
+		CNavMesh* pNavMesh = Find_NavMesh();
+
+		if (nullptr != pNavMesh)
+		{
+			const _int iSnapVertexIndex = pNavMesh->Find_Vertex(Result.vPosition);
+			const vector<_float3>& Vertices = pNavMesh->Get_Vertices();
+
+			if (iSnapVertexIndex >= 0 &&
+				static_cast<size_t>(iSnapVertexIndex) < Vertices.size())
+			{
+				vLightPosition = Vertices[iSnapVertexIndex];
+				bSnappedToNavVertex = true;
+			}
+		}
+	}
+
+
+
 	SCENE_LIGHT Light{};
 	Light.eType = LIGHT::POINT;
-	Light.vPosition = _float4(Result.vPosition.x, Result.vPosition.y + 2.f, Result.vPosition.z, 1.f);
+	Light.vPosition = _float4(vLightPosition.x, vLightPosition.y, vLightPosition.z, 1.f);
 	Light.fRange = 16.f;
 	Light.vDiffuse = _float4(0.55f, 0.45f, 0.32f, 1.f);
 	Light.vAmbient = _float4(0.04f, 0.035f, 0.03f, 1.f);
@@ -1295,7 +1333,10 @@ HRESULT CNavMeshEditorTool::Add_PointLight(_float fPickX, _float fPickY, _uint i
 	m_SceneLights.push_back(Light);
 	m_iSelectedLightIndex = static_cast<_int>(m_SceneLights.size() - 1);
 
-	Log_EditStatus(LOG_LEVEL::INFO, "Added Point Light.");
+	if (bSnappedToNavVertex)
+		Log_EditStatus(LOG_LEVEL::INFO, "Added Point Light. (NavMesh vertex snapped)");
+	else
+		Log_EditStatus(LOG_LEVEL::INFO, "Added Point Light.");
 
 	return S_OK;
 }

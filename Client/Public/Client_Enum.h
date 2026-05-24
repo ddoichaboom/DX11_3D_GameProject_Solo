@@ -65,6 +65,9 @@ namespace Client
 		SKILL_E,
 		SKILL_R,
 		QTE_EXTREME_DASH,
+		PARRY_COUNTER_1,
+		PARRY_COUNTER_2,
+		PARRY_COUNTER_3,
 		END
 	};
 

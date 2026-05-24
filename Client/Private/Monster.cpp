@@ -30,6 +30,23 @@ _int CMonster::Get_CurrentNavCellIndex() const
     return  m_pNavigationAgent->Get_CurrentCellIndex();
 }
 
+void CMonster::Force_Break()
+{
+    if (m_fCurrentHP <= 0.f || false == m_bHasBreak || nullptr == m_pStateMachine)
+        return;
+
+    const MONSTER_ACTION eCur = m_pStateMachine->Get_CurrentMonsterAction();
+
+    if (MONSTER_ACTION::CRASH == eCur || MONSTER_ACTION::DEATH == eCur)
+        return;
+
+    m_bPreserveBreakOnCrashExit = true;
+
+    OutputDebugStringA("[Monster] FORCE BREAK (parry) -> CRASH (gauge preserved)\n");
+
+    m_pStateMachine->Try_Action(MONSTER_ACTION::CRASH, MONSTER_ACTION_STEP::START);
+}
+
 void CMonster::Take_Damage(_float fAmount)
 {
     if (m_fCurrentHP <= 0.f)
@@ -116,8 +133,12 @@ void CMonster::Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_ACTIO
         MONSTER_ACTION::CRASH == eFromAction &&
         MONSTER_ACTION::CRASH != eToAction)
     {
-        m_fCurrentBreak = m_fMaxBreak;
+        if (false == m_bPreserveBreakOnCrashExit)
+            m_fCurrentBreak = m_fMaxBreak;
+
+        m_bPreserveBreakOnCrashExit = false;
         m_fCrashDurationCurrent = 0.f;
+        
     }
 
     m_pBody->Play_Action(eToAction, eToStep, MONSTER_PHASE::COMMON);
@@ -501,7 +522,7 @@ void CMonster::On_WeaponHitEnter(CCollider* pOther)
 
     CPlayer* pPlayer = dynamic_cast<CPlayer*>(pTarget);
     if (nullptr != pPlayer)
-        pPlayer->Take_Damage(10.f);
+        pPlayer->Take_Damage(10.f, this);
 
     if (auto* pHUD = CHUD_GamePlay::Get_Instance())
         pHUD->Notify_Hit(this);

@@ -356,11 +356,23 @@ void CPanel_NavMeshEditor::Render()
 
 				if (ImGui::DragFloat3("Direction", &vDirection.x, 0.01f, -1.f, 1.f, "%.3f"))
 				{
-					_vector vDir = XMVector3Normalize(XMLoadFloat3(&vDirection));
-					XMStoreFloat3(&vDirection, vDir);
-
 					Light.vDirection = _float4(vDirection.x, vDirection.y, vDirection.z, 0.f);
 					m_pTool->Set_SelectedSceneLight(Light);
+				}
+
+				if (ImGui::Button("Normalize Direction"))
+				{
+					_vector vDir = XMLoadFloat3(&vDirection);
+					const _float fLengthSq = XMVectorGetX(XMVector3LengthSq(vDir));
+
+					if (fLengthSq > 0.0001f)
+					{
+						vDir = XMVector3Normalize(vDir);
+						XMStoreFloat3(&vDirection, vDir);
+
+						Light.vDirection = _float4(vDirection.x, vDirection.y, vDirection.z, 0.f);
+						m_pTool->Set_SelectedSceneLight(Light);
+					}
 				}
 			}
 

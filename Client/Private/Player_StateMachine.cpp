@@ -320,6 +320,11 @@ _bool CPlayer_StateMachine::Is_AttackLocked() const
 {
     const CHARACTER_ACTION eCur = Get_CurrentCharacterAction();
 
+    if (CHARACTER_ACTION::PARRY_COUNTER_1 == eCur ||
+        CHARACTER_ACTION::PARRY_COUNTER_2 == eCur ||
+        CHARACTER_ACTION::PARRY_COUNTER_3 == eCur)
+        return true;
+
     const _bool bIsAttacking =
         (CHARACTER_ACTION::BASIC_ATTACK_01 == eCur) ||
         (CHARACTER_ACTION::BASIC_ATTACK_02 == eCur) ||
@@ -409,6 +414,14 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
         // GUARD + END 종료 → IDLE
         else if (CHARACTER_ACTION::GUARD == eFinished
             && CHARACTER_ACTION_STEP::END == eFinishedStep)
+        {
+            Try_Action(CHARACTER_ACTION::IDLE);
+            break;
+        }
+
+        if (CHARACTER_ACTION::PARRY_COUNTER_1 == eFinished ||
+            CHARACTER_ACTION::PARRY_COUNTER_2 == eFinished ||
+            CHARACTER_ACTION::PARRY_COUNTER_3 == eFinished)
         {
             Try_Action(CHARACTER_ACTION::IDLE);
             break;
@@ -580,6 +593,15 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                 const CHARACTER_ACTION      eCur = Get_CurrentCharacterAction();
                 const CHARACTER_ACTION_STEP eCurStep = Get_CurrentCharacterStep();
 
+                if (CHARACTER_ACTION::GUARD == eCur)
+                {
+                    m_pOwner->Set_ParryWindow(true);
+#ifdef _DEBUG 
+                    OutputDebugStringA("[Parry] Window ON\n");
+#endif
+                    break;
+                }
+
                 // SKILL_F + START + KnightKiller → skill collider ON
                 if (CHARACTER_ACTION::SKILL_F == eCur
                     && CHARACTER_ACTION_STEP::START == eCurStep
@@ -607,6 +629,15 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
 
             const CHARACTER_ACTION      eCur = Get_CurrentCharacterAction();
             const CHARACTER_ACTION_STEP eCurStep = Get_CurrentCharacterStep();
+
+            if (CHARACTER_ACTION::GUARD == eCur)
+            {
+                m_pOwner->Set_ParryWindow(false);
+#ifdef _DEBUG
+                OutputDebugStringA("[Parry] Window OFF\n");
+#endif
+                break;
+            }
 
             if (CHARACTER_ACTION::SKILL_F == eCur
                 && CHARACTER_ACTION_STEP::START == eCurStep
@@ -671,6 +702,18 @@ void CPlayer_StateMachine::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)
     Try_Action(eFloatAction);
 }
 
+void CPlayer_StateMachine::Enter_ParryCounter()
+{
+    static const CHARACTER_ACTION s_ParryActions[] =
+    {
+        CHARACTER_ACTION::PARRY_COUNTER_1,
+        CHARACTER_ACTION::PARRY_COUNTER_2,
+        CHARACTER_ACTION::PARRY_COUNTER_3,
+    };
+
+    Try_Action(s_ParryActions[rand() % 3]);
+}
+
 void CPlayer_StateMachine::Update(_float fTimeDelta)
 {
     __super::Update(fTimeDelta);
@@ -730,6 +773,13 @@ void CPlayer_StateMachine::On_Transition(_uint iFrom, _uint iTo, _bool bInitial)
 
     const CHARACTER_ACTION eTo = Get_PlayerActionFromStateKey(iTo);
 
+    const _bool bInGuardStart =
+        (CHARACTER_ACTION::GUARD == eTo &&
+            CHARACTER_ACTION_STEP::START == Get_PlayerStepFromStateKey(iTo));
+
+    if (false == bInGuardStart)
+        m_pOwner->Set_ParryWindow(false);
+
     switch (eTo)
     {
     case CHARACTER_ACTION::WALK:
@@ -785,6 +835,12 @@ void CPlayer_StateMachine::On_Transition(_uint iFrom, _uint iTo, _bool bInitial)
     case CHARACTER_ACTION::BASIC_ATTACK_02:
     case CHARACTER_ACTION::BASIC_ATTACK_03:
     case CHARACTER_ACTION::GUARD:           // R2 통합
+        m_pOwner->Set_WeaponsVisible(true);
+        break;
+
+    case CHARACTER_ACTION::PARRY_COUNTER_1:
+    case CHARACTER_ACTION::PARRY_COUNTER_2:
+    case CHARACTER_ACTION::PARRY_COUNTER_3:
         m_pOwner->Set_WeaponsVisible(true);
         break;
 

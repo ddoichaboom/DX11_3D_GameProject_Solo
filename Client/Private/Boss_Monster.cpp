@@ -424,7 +424,7 @@ void CBoss_Monster::Apply_AreaAttackDamage(const AREA_ATTACK_DESC& Desc)
 
     CPlayer* pPlayer = dynamic_cast<CPlayer*>(pTarget);
     if (nullptr != pPlayer)
-        pPlayer->Take_Damage(Desc.fDamage);
+        pPlayer->Take_Damage(Desc.fDamage, this);
 }
 
 _bool CBoss_Monster::Is_TargetInArea(CGameObject* pTarget, const AREA_ATTACK_DESC& Desc) const

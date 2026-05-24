@@ -38,7 +38,7 @@ private:
 public:
 	void					Render_Overlay(const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight);
 	void					Handle_ViewportClick(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
-	void                    Handle_LightViewportClick(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
+	void                    Handle_LightViewportClick(_float fPickX, _float fPickY, const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight);
 
 	HRESULT					Create_NavMeshCell();
 	void					Clear_PickPoints();
@@ -111,7 +111,7 @@ private:
 	void					Log_EditStatus(LOG_LEVEL eLevel, const string& strMessage) const;
 
 	void                    Render_Lights(const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight);
-	void                    Select_Light(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
+	void                    Select_Light(_float fPickX, _float fPickY, const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight);
 	HRESULT                 Add_PointLight(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight);
 
 private:
