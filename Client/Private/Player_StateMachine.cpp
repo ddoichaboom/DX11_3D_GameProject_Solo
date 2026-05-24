@@ -285,7 +285,7 @@ void CPlayer_StateMachine::Update_Skills(const PLAYER_INTENT_FRAME& Intent)
     }
 
     // F 키 — 무기 고유 스킬
-    if (true == Intent.bSkillFRequested && true == m_pOwner->Can_UseSkillF())
+    if (true == Intent.bSkillFRequested && true == m_pOwner->Can_UseSkill(SKILL_SLOT::F))
     {
         const EQUIPPED_WEAPON_ID eEquipped = m_pOwner->Get_EquippedWeapon();
 
@@ -303,7 +303,43 @@ void CPlayer_StateMachine::Update_Skills(const PLAYER_INTENT_FRAME& Intent)
 
         if (true == Try_Action(CHARACTER_ACTION::SKILL_F, eStep))
         {
-            m_pOwner->Trigger_SkillF();
+            m_pOwner->Trigger_Skill(SKILL_SLOT::F);
+            if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+                pHUD->Notify_CombatInput();
+        }
+        return;
+    }
+
+    // Q 키 — 스킬 Q (무기 무관 단일, Skill Collider 사용)
+    if (true == Intent.bSkillQRequested && true == m_pOwner->Can_UseSkill(SKILL_SLOT::Q))
+    {
+        if (EQUIPPED_WEAPON_ID::NONE == m_pOwner->Get_EquippedWeapon())
+            return;
+
+        if (true == Try_Action(CHARACTER_ACTION::SKILL_Q))
+        {
+            m_pOwner->Trigger_Skill(SKILL_SLOT::Q);
+            if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+                pHUD->Notify_CombatInput();
+        }
+        return;
+    }
+
+    // E 키 — 스킬 E (KnightKiller: START 진입 → 다단계 / Kasaka: NONE 단일)
+    if (true == Intent.bSkillERequested && true == m_pOwner->Can_UseSkill(SKILL_SLOT::E))
+    {
+        const EQUIPPED_WEAPON_ID eEquipped = m_pOwner->Get_EquippedWeapon();
+        if (EQUIPPED_WEAPON_ID::NONE == eEquipped)
+            return;
+
+        const CHARACTER_ACTION_STEP eStep =
+            (EQUIPPED_WEAPON_ID::KNIGHT_KILLER == eEquipped)
+            ? CHARACTER_ACTION_STEP::START
+            : CHARACTER_ACTION_STEP::NONE;
+
+        if (true == Try_Action(CHARACTER_ACTION::SKILL_E, eStep))
+        {
+            m_pOwner->Trigger_Skill(SKILL_SLOT::E);
             if (auto* pHUD = CHUD_GamePlay::Get_Instance())
                 pHUD->Notify_CombatInput();
         }
@@ -465,6 +501,36 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
             }
         }
 
+        // SKILL_E 종료 분기 (Kasaka NONE→IDLE / KK START→LOOP→END(End_01)→END2(End_02)→IDLE)
+        if (CHARACTER_ACTION::SKILL_E == eFinished)
+        {
+            if (CHARACTER_ACTION_STEP::NONE == eFinishedStep)   // Kasaka 단일
+            {
+                Try_Action(CHARACTER_ACTION::IDLE);
+                break;
+            }
+            if (CHARACTER_ACTION_STEP::START == eFinishedStep)
+            {
+                Try_Action(CHARACTER_ACTION::SKILL_E, CHARACTER_ACTION_STEP::LOOP);
+                break;
+            }
+            if (CHARACTER_ACTION_STEP::LOOP == eFinishedStep)
+            {
+                Try_Action(CHARACTER_ACTION::SKILL_E, CHARACTER_ACTION_STEP::END);
+                break;
+            }
+            if (CHARACTER_ACTION_STEP::END == eFinishedStep)    // End_01 → End_02
+            {
+                Try_Action(CHARACTER_ACTION::SKILL_E, CHARACTER_ACTION_STEP::END2);
+                break;
+            }
+            if (CHARACTER_ACTION_STEP::END2 == eFinishedStep)   // End_02 → IDLE
+            {
+                Try_Action(CHARACTER_ACTION::IDLE);
+                break;
+            }
+        }
+
         // UNDRAW 종료 → 무기 숨김
         if (CHARACTER_ACTION::UNDRAW == eFinished)
         {
@@ -512,7 +578,11 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
 
                 const _bool bWeaponSwap = (CHARACTER_ACTION::WEAPON_SWAP == eCur);
 
-                if (true == bKK_Loop || true == bKasaka_Slam || true == bQTE || true == bWeaponSwap)
+                const _bool bSkillQ = (CHARACTER_ACTION::SKILL_Q == eCur);
+                const _bool bSkillE = (CHARACTER_ACTION::SKILL_E == eCur);
+
+                if (true == bKK_Loop || true == bKasaka_Slam || true == bQTE || true == bWeaponSwap
+                    || true == bSkillQ || true == bSkillE)
                 {
                     const _uint iCur = Make_PlayerStateKey(eCur, eCurStep);
 
@@ -575,7 +645,11 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                 const _bool bQTE = (CHARACTER_ACTION::QTE_EXTREME_DASH == eCur);
                 const _bool bWeaponSwap = (CHARACTER_ACTION::WEAPON_SWAP == eCur);
 
-                if (true == bKK_Loop || true == bKasaka_Slam || true == bQTE || true == bWeaponSwap)
+                const _bool bSkillQ = (CHARACTER_ACTION::SKILL_Q == eCur);
+                const _bool bSkillE = (CHARACTER_ACTION::SKILL_E == eCur);
+
+                if (true == bKK_Loop || true == bKasaka_Slam || true == bQTE || true == bWeaponSwap
+                    || true == bSkillQ || true == bSkillE)
                 {
                     m_pOwner->Enable_SkillCollider(false);
                     break;
@@ -717,6 +791,22 @@ void CPlayer_StateMachine::Enter_ParryCounter()
 void CPlayer_StateMachine::Update(_float fTimeDelta)
 {
     __super::Update(fTimeDelta);
+
+    // SKILL_E KnightKiller LOOP 차징 — 일정 시간 도달 시 END(End_01)로 자동 전환
+    // (Skill_06_Loop 가 loop=true 라 ACTION_FINISHED 가 안 와서 타이머로 강제 종료)
+    if (CHARACTER_ACTION::SKILL_E == Get_CurrentCharacterAction() &&
+        CHARACTER_ACTION_STEP::LOOP == Get_CurrentCharacterStep())
+    {
+        m_fSkillELoopTimer += fTimeDelta;
+        if (m_fSkillELoopTimer >= SKILL_E_LOOP_DURATION)
+        {
+            m_fSkillELoopTimer = 0.f;
+            __super::On_ActionFinished();
+            Try_Action(CHARACTER_ACTION::SKILL_E, CHARACTER_ACTION_STEP::END);
+        }
+        return;
+    }
+    m_fSkillELoopTimer = 0.f;
 
     if (CHARACTER_ACTION::FLOAT_END != Get_CurrentCharacterAction())
         return;

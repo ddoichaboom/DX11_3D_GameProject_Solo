@@ -83,14 +83,14 @@ public:
     _bool                   Can_WeaponSwap() const { return m_fWeaponSwapCooldownTimer <= 0.f; }
     void                    Trigger_WeaponSwap();
 
-    _bool                   Can_UseSkillF() const { return m_fSkillFCooldownTimer <= 0.f; }
-    void                    Trigger_SkillF();
+    _bool                   Can_UseSkill(SKILL_SLOT eSlot) const { return m_fSkillCooldown[ETOI(eSlot)] <= 0.f; }
+    void                    Trigger_Skill(SKILL_SLOT eSlot);
 
     void                    Tick_SkillCooldowns(_float fTimeDelta);
     _float                  Get_WeaponSwapCooldownTimer() const { return m_fWeaponSwapCooldownTimer; }
     _float                  Get_WeaponSwapCooldownMax()   const { return WEAPON_SWAP_COOLDOWN; }
-    _float                  Get_SkillFCooldownTimer() const { return m_fSkillFCooldownTimer; }
-    _float                  Get_SkillFCooldownMax()   const { return SKILL_F_COOLDOWN; }
+    _float                  Get_SkillCooldownTimer(SKILL_SLOT eSlot) const { return m_fSkillCooldown[ETOI(eSlot)]; }
+    _float                  Get_SkillCooldownMax(SKILL_SLOT eSlot)   const { return SKILL_COOLDOWN[ETOI(eSlot)]; }
 
     void                    Enter_FloatReaction(CHARACTER_ACTION eFloatAction, class CMonster* pAttacker = nullptr);
 
@@ -222,10 +222,11 @@ private:
 
     static constexpr _uint  BODY_BLOCK_MAX_CANDIDATE_CELLS = { 16 };
     static constexpr _float WEAPON_SWAP_COOLDOWN = { 5.0f };
-    static constexpr _float SKILL_F_COOLDOWN = { 5.0f };
+    static constexpr _int   SKILL_SLOT_COUNT = ETOI(SKILL_SLOT::END);
+    static constexpr _float SKILL_COOLDOWN[SKILL_SLOT_COUNT] = { 5.0f, 5.0f, 5.0f, 8.0f };
 
     _float                  m_fWeaponSwapCooldownTimer = { 0.f };
-    _float                  m_fSkillFCooldownTimer = { 0.f };
+    _float                  m_fSkillCooldown[SKILL_SLOT_COUNT] = {};
 
     _bool                   m_bSkillColliderActive = { false };
     _bool                   m_bInvincible = { false };

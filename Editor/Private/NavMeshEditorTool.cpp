@@ -76,6 +76,26 @@ namespace
 			return "Unknown";
 		}
 	}
+
+	void Sort_SceneLightsForAuthoring(vector<SCENE_LIGHT>& SceneLights)
+	{
+		vector<SCENE_LIGHT> SortedLights;
+		SortedLights.reserve(SceneLights.size());
+
+		for (const SCENE_LIGHT& Light : SceneLights)
+		{
+			if (LIGHT::DIRECTIONAL == Light.eType)
+				SortedLights.push_back(Light);
+		}
+
+		for (const SCENE_LIGHT& Light : SceneLights)
+		{
+			if (LIGHT::DIRECTIONAL != Light.eType)
+				SortedLights.push_back(Light);
+		}
+
+		SceneLights = SortedLights;
+	}
 }
 
 CNavMeshEditorTool::CNavMeshEditorTool()
@@ -292,8 +312,16 @@ HRESULT CNavMeshEditorTool::Save_NavData()
 		return E_FAIL;
 	}
 
+	_tchar szNavDataPath[MAX_PATH] = {};
+	if (false == Get_CurrentNavDataPath(szNavDataPath, MAX_PATH))
+	{
+		Log_EditStatus(LOG_LEVEL::ERROR_, "Invalid NavData path.");
+		return E_FAIL;
+	}
+
 	std::error_code ErrorCode{};
-	std::filesystem::create_directories(std::filesystem::path(TEXT("../../Resources/NavMesh")), ErrorCode);
+	std::filesystem::path NavDataPath(szNavDataPath);
+	std::filesystem::create_directories(NavDataPath.parent_path(), ErrorCode);
 
 	if (ErrorCode)
 	{
@@ -301,13 +329,13 @@ HRESULT CNavMeshEditorTool::Save_NavData()
 		return E_FAIL;
 	}
 
-	if (FAILED(pNavMesh->Save_NavData(NAVDATA_PATH)))
+	if (FAILED(pNavMesh->Save_NavData(szNavDataPath)))
 	{
 		Log_EditStatus(LOG_LEVEL::ERROR_, "Failed to save NavData.");
 		return E_FAIL;
 	}
 
-	Log_EditStatus(LOG_LEVEL::INFO, "Saved NavData: ../../Resources/NavMesh/ThroneRoom.navdata");
+	Log_EditStatus(LOG_LEVEL::INFO, "Saved NavData.");
 
 	return S_OK;
 }
@@ -321,9 +349,16 @@ HRESULT CNavMeshEditorTool::Load_NavData()
 		return E_FAIL;
 	}
 
+	_tchar szNavDataPath[MAX_PATH] = {};
+	if (false == Get_CurrentNavDataPath(szNavDataPath, MAX_PATH))
+	{
+		Log_EditStatus(LOG_LEVEL::ERROR_, "Invalid NavData path.");
+		return E_FAIL;
+	}
+
 	NAVMESH_SNAPSHOT Backup = pNavMesh->Capture_Snapshot();
 
-	if (FAILED(pNavMesh->Load_NavData(NAVDATA_PATH)))
+	if (FAILED(pNavMesh->Load_NavData(szNavDataPath)))
 	{
 		Log_EditStatus(LOG_LEVEL::ERROR_, "Failed to load NavData.");
 		return E_FAIL;
@@ -332,7 +367,7 @@ HRESULT CNavMeshEditorTool::Load_NavData()
 	Push_UndoSnapshot(Backup);
 	Clear_EditState();
 
-	Log_EditStatus(LOG_LEVEL::INFO, "Loaded NavData: ../../Resources/NavMesh/ThroneRoom.navdata");
+	Log_EditStatus(LOG_LEVEL::INFO, "Loaded NavData.");
 
 	return S_OK;
 }
@@ -509,13 +544,12 @@ HRESULT CNavMeshEditorTool::Save_SceneData()
 	SCENE_DATA ExistingSceneData{};
 	const _bool bExistingSceneLoaded = SUCCEEDED(CSceneSerializer::Load(SCENEDATA_PATH, &ExistingSceneData));
 
-	if (true == bExistingSceneLoaded && 0 != ExistingSceneData.szNavDataPath[0])
-		wcscpy_s(SceneData.szNavDataPath, ExistingSceneData.szNavDataPath);
-	else
+	if (false == Get_CurrentNavDataPath(SceneData.szNavDataPath, MAX_PATH))
 		wcscpy_s(SceneData.szNavDataPath, NAVDATA_PATH);
 
 	SceneData.SpawnPoints = m_SpawnPoints;
 	SceneData.SceneLights = m_SceneLights;
+	Sort_SceneLightsForAuthoring(SceneData.SceneLights);
 
 	if (m_SpawnPoints.empty())
 	{
@@ -550,6 +584,7 @@ HRESULT CNavMeshEditorTool::Load_SceneData()
 
 	m_SpawnPoints = SceneData.SpawnPoints;
 	m_SceneLights = SceneData.SceneLights;
+	Sort_SceneLightsForAuthoring(m_SceneLights);
 
 	m_iSelectedSpawnPointIndex = INVALID_INDEX;
 	m_iSelectedLightIndex = INVALID_INDEX;
@@ -1206,6 +1241,26 @@ CNavMesh* CNavMeshEditorTool::Find_NavMesh() const
 	}
 
 	return nullptr;
+}
+
+_bool CNavMeshEditorTool::Get_CurrentNavDataPath(_tchar* pOutPath, size_t iLength) const
+{
+	if (nullptr == pOutPath || 0 == iLength)
+		return false;
+
+	pOutPath[0] = 0;
+
+	SCENE_DATA SceneData{};
+
+	if (SUCCEEDED(CSceneSerializer::Load(SCENEDATA_PATH, &SceneData)) &&
+		0 != SceneData.szNavDataPath[0])
+	{
+		wcscpy_s(pOutPath, iLength, SceneData.szNavDataPath);
+		return true;
+	}
+
+	wcscpy_s(pOutPath, iLength, NAVDATA_PATH);
+	return true;
 }
 
 void CNavMeshEditorTool::Log_EditStatus(LOG_LEVEL eLevel, const string& strMessage) const

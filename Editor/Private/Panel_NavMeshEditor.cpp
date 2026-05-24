@@ -375,10 +375,6 @@ void CPanel_NavMeshEditor::Render()
 					swprintf_s(szPresetName, TEXT("PointLight_%02d"), iSelectedLight);
 
 					wcscpy_s(Light.szName, szPresetName);
-					Light.fRange = 16.f;
-					Light.vDiffuse = _float4(0.55f, 0.45f, 0.32f, 1.f);
-					Light.vAmbient = _float4(0.04f, 0.035f, 0.03f, 1.f);
-					Light.vSpecular = _float4(0.20f, 0.18f, 0.14f, 1.f);
 
 					m_pTool->Set_SelectedSceneLight(Light);
 				}
@@ -391,10 +387,6 @@ void CPanel_NavMeshEditor::Render()
 					swprintf_s(szPresetName, TEXT("Torch_%02d"), iSelectedLight);
 
 					wcscpy_s(Light.szName, szPresetName);
-					Light.fRange = 10.f;
-					Light.vDiffuse = _float4(1.00f, 0.34f, 0.12f, 1.f);
-					Light.vAmbient = _float4(0.055f, 0.018f, 0.010f, 1.f);
-					Light.vSpecular = _float4(0.25f, 0.09f, 0.035f, 1.f);
 
 					m_pTool->Set_SelectedSceneLight(Light);
 				}

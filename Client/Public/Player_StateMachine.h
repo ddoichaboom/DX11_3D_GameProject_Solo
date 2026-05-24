@@ -84,6 +84,9 @@ private:
 	_float							m_fDownRecoverTimer = { 0.f };
 	static constexpr _float			DOWN_RECOVER_DELAY = { 0.5f };
 
+	_float							m_fSkillELoopTimer = { 0.f };
+	static constexpr _float			SKILL_E_LOOP_DURATION = { 1.0f };
+
 	unordered_map<_uint, SKILL_PARAMS>  m_SkillParams;
 
 	_uint							m_iSkillSphereOnIndex = { 0 };

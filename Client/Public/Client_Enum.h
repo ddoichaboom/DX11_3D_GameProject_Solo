@@ -76,6 +76,16 @@ namespace Client
 		NONE,
 		START,
 		LOOP,
+		END,
+		END2
+	};
+
+	enum class SKILL_SLOT
+	{
+		Q,
+		E,
+		F,
+		R,
 		END
 	};
 

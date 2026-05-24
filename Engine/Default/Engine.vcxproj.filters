@@ -202,6 +202,9 @@
     <Filter Include="14. RenderTargets\Manager">
       <UniqueIdentifier>{1b0c4551-989e-4bb7-bbb8-10395cf1c47d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="07. Component\VIBuffer\Instance">
+      <UniqueIdentifier>{b1188eed-48b1-4e54-a925-f768f8e6ef18}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Private\Base.cpp">
@@ -235,6 +238,9 @@
       <Filter>07. Component\VIBuffer</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\VIBuffer_Rect.cpp">
+      <Filter>07. Component\VIBuffer\Rect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\VIBuffer_Rect_Instance.cpp">
       <Filter>07. Component\VIBuffer\Rect</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\Timer.cpp">
@@ -375,6 +381,9 @@
     <ClCompile Include="..\Private\Target_Manager.cpp">
       <Filter>14. RenderTargets\Manager</Filter>
     </ClCompile>
+    <ClCompile Include="..\Private\VIBuffer_Instance.cpp">
+      <Filter>07. Component\VIBuffer\Instance</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Public\GameInstance.h">
@@ -406,6 +415,9 @@
     </ClInclude>
     <ClInclude Include="..\Public\VIBuffer.h">
       <Filter>07. Component\VIBuffer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\VIBuffer_Rect_Instance.h">
+      <Filter>07. Component\VIBuffer\Rect</Filter>
     </ClInclude>
     <ClInclude Include="..\Public\Base.h">
       <Filter>98. SuperClass\Base</Filter>
@@ -571,6 +583,9 @@
     </ClInclude>
     <ClInclude Include="..\Public\Target_Manager.h">
       <Filter>14. RenderTargets\Manager</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\VIBuffer_Instance.h">
+      <Filter>07. Component\VIBuffer\Instance</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

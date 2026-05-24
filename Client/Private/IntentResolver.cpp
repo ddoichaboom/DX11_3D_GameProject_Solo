@@ -16,6 +16,8 @@ void CIntentResolver::Resolve(const PLAYER_RAW_INPUT_FRAME& Raw, _float fCameraY
     pOutIntent->vMoveDirWorld = { 0.f, 0.f, 0.f };
     pOutIntent->bWeaponSwapRequested = Raw.bWeaponSwapPressed;
     pOutIntent->bSkillFRequested = Raw.bSkillFPressed;
+    pOutIntent->bSkillQRequested = Raw.bSkillQPressed;
+    pOutIntent->bSkillERequested = Raw.bSkillEPressed;
     pOutIntent->bQTERequested = Raw.bShiftPressed;
 
     if (true == bHasMoveIntent)

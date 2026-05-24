@@ -97,6 +97,8 @@ namespace Client
 
 		_bool bWeaponSwapPressed = { false };
 		_bool bSkillFPressed = { false };
+		_bool bSkillQPressed = { false };
+		_bool bSkillEPressed = { false };
 		_bool bShiftPressed = { false };
 
 		_long lMouseDeltaX = {};
@@ -111,6 +113,8 @@ namespace Client
 		_bool bDashRequested = { false };		// �̹� �����ӿ� Dash ��û
 		_bool bAttackRequested = { false };
 		_bool bSkillFRequested = { false };
+		_bool bSkillQRequested = { false };
+		_bool bSkillERequested = { false };
 		_bool bQTERequested = { false };
 
 		_bool bGuardHeld = { false };

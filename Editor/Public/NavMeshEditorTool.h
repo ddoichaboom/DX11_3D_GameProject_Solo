@@ -107,6 +107,7 @@ private:
 	_bool					World_To_Viewport(const _float3& vWorldPosition, const ImVec2& vImagePos, _uint iViewportWidth, _uint iViewportHeight, ImVec2* pOutScreenPosition) const;
 	_bool					Pick_Surface(_float fPickX, _float fPickY, _uint iViewportWidth, _uint iViewportHeight, PICK_RESULT* pOutResult, _bool bMapOnly = false);
 	CNavMesh*				Find_NavMesh() const;
+	_bool					Get_CurrentNavDataPath(_tchar* pOutPath, size_t iLength) const;
 
 	void					Log_EditStatus(LOG_LEVEL eLevel, const string& strMessage) const;
 

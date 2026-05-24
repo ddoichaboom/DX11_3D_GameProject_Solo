@@ -304,8 +304,20 @@ void CPlayer::Handle_ActionTransition(CHARACTER_ACTION eFromAction, CHARACTER_AC
 		Resolve_BodyBlockOverlap();
 	}
 
-	if (CHARACTER_ACTION::SKILL_F == eFromAction
-		&& CHARACTER_ACTION::SKILL_F != eToAction)
+	// 안전망: 스킬 콜라이더 보유 액션 → 비-스킬 액션 전이 시 강제 OFF
+	// (히트/사망 등으로 스킬이 중단돼 ATTACK_HITBOX_OFF Notify를 못 받는 경우 대비)
+	auto Is_SkillColliderAction = [](CHARACTER_ACTION e) -> _bool
+		{
+			return (CHARACTER_ACTION::SKILL_F == e)
+				|| (CHARACTER_ACTION::SKILL_Q == e)
+				|| (CHARACTER_ACTION::SKILL_E == e)
+				|| (CHARACTER_ACTION::SKILL_R == e)
+				|| (CHARACTER_ACTION::QTE_EXTREME_DASH == e)
+				|| (CHARACTER_ACTION::WEAPON_SWAP == e);
+		};
+
+	if (true == Is_SkillColliderAction(eFromAction)
+		&& false == Is_SkillColliderAction(eToAction))
 	{
 		Enable_SkillCollider(false);
 	}
@@ -450,10 +462,10 @@ void CPlayer::Trigger_WeaponSwap()
 	m_fWeaponSwapCooldownTimer = WEAPON_SWAP_COOLDOWN;
 }
 
-void CPlayer::Trigger_SkillF()
+void CPlayer::Trigger_Skill(SKILL_SLOT eSlot)
 {
 	Set_WeaponsVisible(true);
-	m_fSkillFCooldownTimer = SKILL_F_COOLDOWN;
+	m_fSkillCooldown[ETOI(eSlot)] = SKILL_COOLDOWN[ETOI(eSlot)];
 }
 
 void CPlayer::Tick_SkillCooldowns(_float fTimeDelta)
@@ -461,8 +473,11 @@ void CPlayer::Tick_SkillCooldowns(_float fTimeDelta)
 	if (m_fWeaponSwapCooldownTimer > 0.f)
 		m_fWeaponSwapCooldownTimer = max(0.f, m_fWeaponSwapCooldownTimer - fTimeDelta);
 
-	if (m_fSkillFCooldownTimer > 0.f)
-		m_fSkillFCooldownTimer = max(0.f, m_fSkillFCooldownTimer - fTimeDelta);
+	for (_int i = 0; i < SKILL_SLOT_COUNT; ++i)
+	{
+		if (m_fSkillCooldown[i] > 0.f)
+			m_fSkillCooldown[i] = max(0.f, m_fSkillCooldown[i] - fTimeDelta);
+	}
 }
 
 HRESULT CPlayer::Ready_PartObjects()
@@ -1065,6 +1080,8 @@ void CPlayer::Gather_RawInput(PLAYER_RAW_INPUT_FRAME* pOutRaw)
 	pOutRaw->bDashPressed = m_pGameInstance->Get_KeyDown(VK_SPACE);
 	pOutRaw->bWeaponSwapPressed = m_pGameInstance->Get_KeyDown('C');
 	pOutRaw->bSkillFPressed = m_pGameInstance->Get_KeyDown('F');
+	pOutRaw->bSkillQPressed = m_pGameInstance->Get_KeyDown('Q');
+	pOutRaw->bSkillEPressed = m_pGameInstance->Get_KeyDown('E');
 	pOutRaw->bShiftPressed = m_pGameInstance->Get_KeyDown(VK_SHIFT);
 
 	const _bool bMouseLBtnDown = m_pGameInstance->Get_MouseBtnDown(MOUSEBTN::LBUTTON);
@@ -1265,6 +1282,9 @@ void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction, CMonster* pAtta
 		m_pWeaponL->Set_AttackHitboxActive(false);
 
 	m_pStateMachine->Enter_FloatReaction(eFloatAction);
+
+	if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+		pHUD->Notify_CombatInput();
 }
 
 void CPlayer::Enable_SkillCollider(_bool bEnable)
@@ -1365,9 +1385,11 @@ _bool CPlayer::Is_AerialAction() const
 		return false;
 
 	const CHARACTER_ACTION eCur = m_pStateMachine->Get_CurrentCharacterAction();
+	const CHARACTER_ACTION_STEP eStep = m_pStateMachine->Get_CurrentCharacterStep();
 
-	if (CHARACTER_ACTION::SKILL_F == eCur &&
-		CHARACTER_ACTION_STEP::NONE == m_pStateMachine->Get_CurrentCharacterStep() &&
+	// Kasaka SKILL_F / SKILL_E(Skill_08) NONE — 공중 동작(애니 Y 변동 유지)
+	if ((CHARACTER_ACTION::SKILL_F == eCur || CHARACTER_ACTION::SKILL_E == eCur) &&
+		CHARACTER_ACTION_STEP::NONE == eStep &&
 		EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == m_eEquippedWeapon)
 		return true;
 
