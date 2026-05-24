@@ -11,6 +11,7 @@
 #include "Weapon.h"
 #include "MapObject.h"
 #include "MapStaticObject.h"
+#include "Camera_Cinematic.h"
 #include "Camera_Follow.h"
 #include "NavMeshObject.h"
 #include "Normal_Monster.h"
@@ -19,6 +20,8 @@
 #include "AnimController.h"
 #include "SpringArm.h"
 #include "Texture.h"
+#include "VIBuffer_Rect_Instance.h"
+#include "AtlasInstanceEffect.h"
 
 CLoader::CLoader(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	: m_pDevice{ pDevice }
@@ -163,6 +166,13 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 			VTXPOS::Elements, VTXPOS::iNumElements))))
 		return E_FAIL;
 
+	// Prototype_Component_Shader_VtxRectInstance
+	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel),
+		TEXT("Prototype_Component_Shader_VtxRectInstance"),
+		CShader::Create(m_pDevice, m_pContext,
+			TEXT("../../Resources/ShaderFiles/Shader_VtxRectInstance.hlsl"),
+			VTXRECT_INSTANCE::Elements, VTXRECT_INSTANCE::iNumElements))))
+		return E_FAIL;
 	m_fProgress = 0.25f;
 
 	lstrcpy(m_szLoadingText, TEXT("컴포넌트 로드 중"));
@@ -193,6 +203,11 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 		CNavigationAgent::Create(m_pDevice, m_pContext))))
 		return E_FAIL;
 
+	// Prototype_Component_VIBuffer_Rect_Instance
+	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel),
+		TEXT("Prototype_Component_VIBuffer_Rect_Instance"),
+		CVIBuffer_Rect_Instance::Create(m_pDevice, m_pContext, 128))))
+		return E_FAIL;
 	m_fProgress = 0.5f;
 
 	lstrcpy(m_szLoadingText, TEXT("텍스처 로드 중"));
@@ -239,14 +254,20 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 		{ TEXT("Prototype_Component_Texture_HUD_Dash_Step3_Glow"), TEXT("../../Resources/Textures/HUD/Dash_Step3_Glow.png") },
 	};
 
-	for (const HUDTextureEntry& Entry : aHUDEntries)
-	{
-		if (FAILED(m_pGameInstance->Add_Prototype(
-			ETOUI(eLevel),
-			Entry.pProtoTag,
-			CTexture::Create(m_pDevice, m_pContext, Entry.pFilePath, 1))))
-			return E_FAIL;
-	}
+	for (const HUDTextureEntry& Entry : aHUDEntries)
+	{
+		if (FAILED(m_pGameInstance->Add_Prototype(
+			ETOUI(eLevel),
+			Entry.pProtoTag,
+			CTexture::Create(m_pDevice, m_pContext, Entry.pFilePath, 1))))
+			return E_FAIL;
+	}
+	// Prototype_Component_Texture_Effect_Fire_Atlas
+	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel),
+		TEXT("Prototype_Component_Texture_Effect_Fire_Atlas"),
+		CTexture::Create(m_pDevice, m_pContext,
+			TEXT("../../Resources/Textures/Effect/Fire/Fx_Fire_Atlas.png"), 1))))
+		return E_FAIL;
 
 	lstrcpy(m_szLoadingText, TEXT("모델 로드 중"));
 
@@ -316,6 +337,11 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 		CCamera_Follow::Create(m_pDevice, m_pContext))))
 		return E_FAIL;
 
+	// Prototype_GameObject_Camera_Cinematic
+	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel), TEXT("Prototype_GameObject_Camera_Cinematic"),
+		CCamera_Cinematic::Create(m_pDevice, m_pContext))))
+		return E_FAIL;
+
 	// Prototype_GameObject_Camera_Free 
 	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel), TEXT("Prototype_GameObject_Camera_Free"),
 		CCamera_Free::Create(m_pDevice, m_pContext))))
@@ -353,6 +379,11 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 	// Prototype_GameObject_MapStaticObject
 	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel), TEXT("Prototype_GameObject_MapStaticObject"),
 		CMapStaticObject::Create(m_pDevice, m_pContext))))
+		return E_FAIL;
+
+	// Prototype_GameObject_AtlasInstanceEffect
+	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel), TEXT("Prototype_GameObject_AtlasInstanceEffect"),
+		CAtlasInstanceEffect::Create(m_pDevice, m_pContext))))
 		return E_FAIL;
 
 	// Prototype_GameObject_Normal_Monster

@@ -20,6 +20,14 @@ public:
 	void						Update_Engine(_float fTimeDelta);
 	HRESULT						Begin_Draw();
 	HRESULT						Draw();
+
+#ifdef _DEBUG
+public: /* Debug render toggles (collider / navmesh) */
+	void						Toggle_RenderCollider() { m_bRenderCollider = !m_bRenderCollider; }
+	void						Toggle_RenderNavMesh() { m_bRenderNavMesh = !m_bRenderNavMesh; }
+	_bool						Is_RenderCollider() const { return m_bRenderCollider; }
+	_bool						Is_RenderNavMesh() const { return m_bRenderNavMesh; }
+#endif
 	HRESULT						End_Draw();
 	void 						Clear_Resources(_int iLevelIndex);
 
@@ -151,6 +159,15 @@ public:
 	_uint						Get_NumLights() const;
 #pragma endregion
 
+#pragma region SOUND_MANAGER
+	HRESULT						Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume = 1.f, _bool bLoop = false);
+	HRESULT						Play_BGM(const _wstring& strSoundKey, _float fVolume = 1.f, _bool bLoop = true);
+	void						Stop_Sound(SOUND_CHANNEL eChannel);
+	void						Stop_AllSounds();
+	void						Set_SoundVolume(SOUND_CHANNEL eChannel, _float fVolume);
+	_bool						Is_SoundPlaying(SOUND_CHANNEL eChannel) const;
+#pragma endregion
+
 #pragma region Font_MANAGER
 	void                        Get_FontTags(vector<_wstring>* pOut);
 	HRESULT						Add_Font(const _wstring& strFontTag, const _tchar* pFontFilePath);
@@ -176,9 +193,13 @@ private:
 	class CCollision_Manager*	m_pCollision_Manager = { nullptr };
 	class CFrustum*				m_pFrustum = { nullptr };
 	class CTarget_Manager*		m_pTarget_Manager = { nullptr };
-
+	class CSound_Manager*		m_pSound_Manager = { nullptr };
 private:
 	_bool						m_bLogicFrozen = { false };
+#ifdef _DEBUG
+	_bool						m_bRenderCollider = { false };
+	_bool						m_bRenderNavMesh = { false };
+#endif
 	HWND						m_hWnd;
 	_uint						m_iWinSizeX;
 	_uint						m_iWinSizeY;

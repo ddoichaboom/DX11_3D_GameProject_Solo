@@ -756,7 +756,8 @@ _bool CPlayer_StateMachine::Is_ReactionLocked() const
         (CHARACTER_ACTION::FLOAT_B == eCurrent) ||
         (CHARACTER_ACTION::FLOAT_END == eCurrent) ||
         (CHARACTER_ACTION::DOWN_RECOVERY == eCurrent) ||
-        (CHARACTER_ACTION::BREAKFALL == eCurrent);
+        (CHARACTER_ACTION::BREAKFALL == eCurrent) ||
+        (CHARACTER_ACTION::DAMAGE == eCurrent);
 }
 
 void CPlayer_StateMachine::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)

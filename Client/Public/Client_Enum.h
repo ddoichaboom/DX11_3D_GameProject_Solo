@@ -57,6 +57,10 @@ namespace Client
 		DOWN_RECOVERY,
 		BREAKFALL,
 
+		// 일반 피격 경직 — STEP축으로 강도 세분화
+		// NONE=UpperOnly / START=A / LOOP=B_Left / END=B_Right / END2=C
+		DAMAGE,
+
 		UNDRAW,
 
 		WEAPON_SWAP,

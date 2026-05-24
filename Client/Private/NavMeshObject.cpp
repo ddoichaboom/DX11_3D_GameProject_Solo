@@ -58,6 +58,11 @@ void CNavMeshObject::Late_Update(_float fTimeDelta)
 
 HRESULT CNavMeshObject::Render()
 {
+#ifdef _DEBUG
+	if (false == m_pGameInstance->Is_RenderNavMesh())
+		return S_OK;
+#endif
+
 	if (nullptr == m_pNavMeshCom ||
 		nullptr == m_pShaderCom ||
 		nullptr == m_pNavMeshBufferCom)

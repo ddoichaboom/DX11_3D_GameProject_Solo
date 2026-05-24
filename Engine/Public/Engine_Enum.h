@@ -36,6 +36,17 @@ namespace Engine
 
 	enum class LIGHT { DIRECTIONAL, POINT, END };
 
+	enum class SOUND_CHANNEL
+	{
+		MASTER,
+		BGM,
+		SFX,
+		PLAYER,
+		MONSTER,
+		WEAPON,
+		UI,
+		END
+	};
 	enum class MODEL { NONANIM, ANIM, END };
 
     enum class TEXTURE_TYPE

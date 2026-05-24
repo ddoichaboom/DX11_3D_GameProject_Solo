@@ -413,15 +413,6 @@ HRESULT CNavMeshEditorTool::Add_MonsterSpawnPoint(SPAWN_TYPE eType)
 
 HRESULT CNavMeshEditorTool::Add_DefaultDirectionalLight()
 {
-	for (const SCENE_LIGHT& Light : m_SceneLights)
-	{
-		if (LIGHT::DIRECTIONAL == Light.eType)
-		{
-			Log_EditStatus(LOG_LEVEL::WARNING, "Directional Light already exists.");
-			return E_FAIL;
-		}
-	}
-
 	SCENE_LIGHT Light{};
 	Light.eType = LIGHT::DIRECTIONAL;
 	wcscpy_s(Light.szName, TEXT("Directional_Main"));

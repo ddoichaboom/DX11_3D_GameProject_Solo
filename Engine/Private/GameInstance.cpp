@@ -11,6 +11,7 @@
 #include "Collision_Manager.h"
 #include "Frustum.h"
 #include "Target_Manager.h"
+#include "Sound_Manager.h"
 
 IMPLEMENT_SINGLETON(CGameInstance)
 
@@ -80,13 +81,19 @@ HRESULT CGameInstance::Initialize_Engine(const ENGINE_DESC& EngineDesc, ID3D11De
 	if (nullptr == m_pFrustum)
 		return E_FAIL;
 
+	m_pSound_Manager = CSound_Manager::Create(TEXT("../../Resources/Audio"));
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
 	return S_OK;
 }
 
 void CGameInstance::Update_Engine(_float fTimeDelta)
 {
-	m_pInput_Device->Update();							// (1) 누적 Raw Input -> 프레임 데이터 복사
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Update();
 
+	m_pInput_Device->Update();							// (1) Raw Input -> frame input copy
 	m_pObject_Manager->Priority_Update(fTimeDelta);		// (2) 카메라 이동 처리
 	m_pObject_Manager->Update(fTimeDelta);				// (3) 카메라 -> PipeLine 세팅
 
@@ -105,7 +112,7 @@ void CGameInstance::Update_Engine(_float fTimeDelta)
 HRESULT CGameInstance::Begin_Draw()
 {
 	// 색상 : 파란색 설정
-	_float4     vColor = _float4(0.f, 0.f, 1.f, 1.f);
+	_float4     vColor = _float4(0.2f, 0.2f, 0.2f, 1.f);
 
 	if (FAILED(m_pGraphic_Device->Clear_BackBuffer_View(&vColor)))
 		return E_FAIL;
@@ -121,8 +128,13 @@ HRESULT CGameInstance::Draw()
 	if (FAILED(m_pRenderer->Draw()))
 		return E_FAIL;
 
-	if (FAILED(m_pCollision_Manager->Render()))
-		return E_FAIL;
+#ifdef _DEBUG
+	if (m_bRenderCollider)
+#endif
+	{
+		if (FAILED(m_pCollision_Manager->Render()))
+			return E_FAIL;
+	}
 
 	if (FAILED(m_pLevel_Manager->Render()))
 		return E_FAIL;
@@ -514,6 +526,52 @@ _uint CGameInstance::Get_NumLights() const
 
 #pragma endregion
 
+#pragma region SOUND_MANAGER
+
+HRESULT CGameInstance::Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume, _bool bLoop)
+{
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
+	return m_pSound_Manager->Play_Sound(strSoundKey, eChannel, fVolume, bLoop);
+}
+
+HRESULT CGameInstance::Play_BGM(const _wstring& strSoundKey, _float fVolume, _bool bLoop)
+{
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
+	return m_pSound_Manager->Play_BGM(strSoundKey, fVolume, bLoop);
+}
+
+void CGameInstance::Stop_Sound(SOUND_CHANNEL eChannel)
+{
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Stop_Sound(eChannel);
+}
+
+void CGameInstance::Stop_AllSounds()
+{
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Stop_All();
+}
+
+void CGameInstance::Set_SoundVolume(SOUND_CHANNEL eChannel, _float fVolume)
+{
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Set_ChannelVolume(eChannel, fVolume);
+}
+
+_bool CGameInstance::Is_SoundPlaying(SOUND_CHANNEL eChannel) const
+{
+	if (nullptr == m_pSound_Manager)
+		return false;
+
+	return m_pSound_Manager->Is_Playing(eChannel);
+}
+
+#pragma endregion
+
 #pragma region Font_MANAGER
 
 void CGameInstance::Get_FontTags(vector<_wstring>* pOut)
@@ -542,6 +600,7 @@ HRESULT CGameInstance::Measure_Font(const _wstring& strFontTag, const _tchar* pT
 
 void CGameInstance::Release_Engine()
 {
+	Safe_Release(m_pSound_Manager);
 	Safe_Release(m_pCollision_Manager);
 	Safe_Release(m_pFont_Manager);
 	Safe_Release(m_pLight_Manager);

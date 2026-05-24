@@ -64,6 +64,30 @@ void CPlayer::Take_Damage(_float fAmount, CMonster* pAttacker)
 
 	m_fCurrentHP = max(0.f, m_fCurrentHP - fAmount);
 
+	// 일반 피격 경직 진입 — DAMAGE 단일 액션 + STEP축 강도 4단계 (Float/Down 미사용)
+	// priority 6 이라 공격(3)/가드(4)/스킬(5) 진행 중이면 캔슬되고 경직으로 전환,
+	// FLOAT(7)/QTE(8) 중이거나 회피(무적) 중에는 진입하지 않음
+	if (m_fCurrentHP > 0.f && nullptr != m_pStateMachine)
+	{
+		constexpr _float fThresholdA = 10.f;   // UpperOnly → A 경계
+		constexpr _float fThresholdB = 20.f;   // A → B 경계
+		constexpr _float fThresholdC = 35.f;   // B → C 경계
+
+		CHARACTER_ACTION_STEP eStep;
+		if (fAmount < fThresholdA)
+			eStep = CHARACTER_ACTION_STEP::NONE;    // Damage_UpperOnly
+		else if (fAmount < fThresholdB)
+			eStep = CHARACTER_ACTION_STEP::START;   // Damage_A
+		else if (fAmount < fThresholdC)
+			eStep = (0 == rand() % 2)               // Damage_B 좌우 랜덤
+				? CHARACTER_ACTION_STEP::LOOP        // B_Left
+				: CHARACTER_ACTION_STEP::END;        // B_Right
+		else
+			eStep = CHARACTER_ACTION_STEP::END2;    // Damage_C
+
+		m_pStateMachine->Try_Action_External(CHARACTER_ACTION::DAMAGE, eStep);
+	}
+
 	if (auto* pHUD = CHUD_GamePlay::Get_Instance())
 		pHUD->Notify_CombatInput();
 }

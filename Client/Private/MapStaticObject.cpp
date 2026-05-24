@@ -79,6 +79,9 @@ HRESULT CMapStaticObject::Render()
 		if (FAILED(m_pModelCom->Bind_Material(m_pShaderCom, "g_DiffuseTexture", i, TEXTURE_TYPE::DIFFUSE)))
 			continue;
 
+		_float fHasSpec = SUCCEEDED(m_pModelCom->Bind_Material(m_pShaderCom, "g_SpecularTexture", i, TEXTURE_TYPE::SPECULAR)) ? 1.f : 0.f;
+		m_pShaderCom->Bind_RawValue("g_fHasSpecularMap", &fHasSpec, sizeof(_float));
+
 		if (FAILED(m_pShaderCom->Begin(1)))
 			return E_FAIL;
 

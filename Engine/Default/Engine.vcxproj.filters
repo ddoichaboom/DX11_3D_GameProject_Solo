@@ -205,6 +205,12 @@
     <Filter Include="07. Component\VIBuffer\Instance">
       <UniqueIdentifier>{b1188eed-48b1-4e54-a925-f768f8e6ef18}</UniqueIdentifier>
     </Filter>
+    <Filter Include="15. Sounds">
+      <UniqueIdentifier>{12ce77e5-c4ec-4d85-b7d4-16b35fcbca15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="15. Sounds\Manager">
+      <UniqueIdentifier>{7a2e1f74-a424-4f24-bb70-39372cb4d18b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Private\Base.cpp">
@@ -383,6 +389,9 @@
     </ClCompile>
     <ClCompile Include="..\Private\VIBuffer_Instance.cpp">
       <Filter>07. Component\VIBuffer\Instance</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Sound_Manager.cpp">
+      <Filter>15. Sounds\Manager</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -586,6 +595,9 @@
     </ClInclude>
     <ClInclude Include="..\Public\VIBuffer_Instance.h">
       <Filter>07. Component\VIBuffer\Instance</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Sound_Manager.h">
+      <Filter>15. Sounds\Manager</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

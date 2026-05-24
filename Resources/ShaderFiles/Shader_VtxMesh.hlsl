@@ -3,6 +3,8 @@
 float4x4 g_WorldMatrix, g_ViewMatrix, g_ProjMatrix;
 
 texture2D g_DiffuseTexture;
+texture2D g_SpecularTexture;
+float g_fHasSpecularMap;
 
 struct VS_IN
 {
@@ -60,7 +62,8 @@ PS_OUT PS_MAIN(PS_IN In)
     vMtrlDiffuse.a = 1.f;
 
     Out.vDiffuse = vMtrlDiffuse;
-    Out.vNormal = vector(In.vNormal.xyz * 0.5f + 0.5f, 0.f);
+    float fSpecMask = g_SpecularTexture.Sample(LinearSampler, In.vTexcoord).r * g_fHasSpecularMap;
+    Out.vNormal = vector(In.vNormal.xyz * 0.5f + 0.5f, fSpecMask);
     Out.vDepth = vector(In.vProjPos.z / In.vProjPos.w, In.vProjPos.w / 500.f, 0.f, 0.f);
 
     return Out;

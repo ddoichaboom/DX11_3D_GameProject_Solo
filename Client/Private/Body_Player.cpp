@@ -108,6 +108,9 @@ HRESULT CBody_Player::Render()
         if (FAILED(m_pModelCom->Bind_BoneMatrices(m_pShaderCom, "g_BoneMatrices", i)))
             return E_FAIL;
 
+        _float fHasSpec = SUCCEEDED(m_pModelCom->Bind_Material(m_pShaderCom, "g_SpecularTexture", i, TEXTURE_TYPE::SPECULAR, 0)) ? 1.f : 0.f;
+        m_pShaderCom->Bind_RawValue("g_fHasSpecularMap", &fHasSpec, sizeof(_float));
+
         if (FAILED(m_pShaderCom->Begin(0)))
             return E_FAIL;
 

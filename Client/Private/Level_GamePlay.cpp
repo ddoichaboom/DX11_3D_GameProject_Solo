@@ -1,5 +1,6 @@
 #include "Level_GamePlay.h"
 #include "GameInstance.h"
+#include "Camera_Cinematic.h"
 #include "Camera_Follow.h"
 #include "Player.h"
 #include "Layer.h"
@@ -12,6 +13,7 @@
 #include "FadeOverlay_Helper.h"
 #include "Monster.h"
 #include "HUD_GamePlay.h" 
+#include "AtlasInstanceEffect.h"
 
 static constexpr _int PLAYER_START_CELL_INDEX = { 40 };
 
@@ -274,6 +276,9 @@ HRESULT CLevel_GamePlay::Initialize()
 	if (FAILED(Ready_Layer_Camera(TEXT("Layer_Camera"))))
 		return E_FAIL;
 
+	if (FAILED(Ready_Layer_Effect(TEXT("Layer_Effect"))))
+		return E_FAIL;
+
 	if (FAILED(Ready_Layer_UI(TEXT("Layer_UI"))))
 		return E_FAIL;
 
@@ -327,6 +332,11 @@ void CLevel_GamePlay::Update(_float fTimeDelta)
 
 		if (m_pGameInstance->Get_KeyDown(VK_F7))
 			pPlayer->Enter_FloatReaction(CHARACTER_ACTION::FLOAT_B);
+
+			if (m_pGameInstance->Get_KeyDown(VK_F1))
+				m_pGameInstance->Toggle_RenderCollider();
+			if (m_pGameInstance->Get_KeyDown(VK_F2))
+				m_pGameInstance->Toggle_RenderNavMesh();
 	}
 #endif
 }
@@ -423,6 +433,18 @@ HRESULT CLevel_GamePlay::Ready_Layer_Camera(const _wstring& strLayerTag)
 		ETOUI(LEVEL::GAMEPLAY), strLayerTag, &CameraDesc)))
 		return E_FAIL;
 
+	CCamera_Cinematic::CAMERA_CINEMATIC_DESC CinematicDesc{};
+	CinematicDesc.vEye = _float3(0.f, 3.f, -5.f);
+	CinematicDesc.vAt = _float3(0.f, 1.5f, 0.f);
+	CinematicDesc.fFovy = XMConvertToRadians(45.f);
+	CinematicDesc.fNear = 0.1f;
+	CinematicDesc.fFar = 500.f;
+	CinematicDesc.bActive = false;
+
+	if (FAILED(m_pGameInstance->Add_GameObject(
+		ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_Camera_Cinematic"),
+		ETOUI(LEVEL::GAMEPLAY), strLayerTag, &CinematicDesc)))
+		return E_FAIL;
 	return S_OK;
 }
 
@@ -512,6 +534,44 @@ HRESULT CLevel_GamePlay::Ready_Layer_Player(const _wstring& strLayerTag)
 
 	if (FAILED(m_pGameInstance->Add_GameObject(
 		ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_Player"),
+		ETOUI(LEVEL::GAMEPLAY), strLayerTag, &Desc)))
+		return E_FAIL;
+
+	return S_OK;
+}
+
+HRESULT CLevel_GamePlay::Ready_Layer_Effect(const _wstring& strLayerTag)
+{
+	if (false == m_bSceneDataLoaded)
+		return S_OK;
+
+	vector<SCENE_LIGHT> TorchLights;
+	Collect_TorchLights(m_SceneData, TorchLights);
+
+	if (true == TorchLights.empty())
+		return S_OK;
+
+	vector<_float4> TorchPositions;
+	TorchPositions.reserve(TorchLights.size());
+
+	for (const SCENE_LIGHT& TorchLight : TorchLights)
+		TorchPositions.push_back(TorchLight.vPosition);
+
+	CAtlasInstanceEffect::ATLAS_INSTANCE_EFFECT_DESC Desc{};
+	Desc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Fire_Atlas");
+	Desc.pPositions = &TorchPositions;
+	Desc.iMaxInstanceCount = static_cast<_uint>(TorchPositions.size());
+	Desc.iAtlasCols = 6;
+	Desc.iAtlasRows = 6;
+	Desc.fFrameDuration = 0.045f;
+	Desc.vSize = _float2(1.0f, 1.2f);
+	Desc.vUVPadding = _float2(0.002f, 0.002f);
+	Desc.vColor = _float4(1.35f, 0.85f, 0.45f, 1.f);
+	Desc.fAlpha = 0.95f;
+	Desc.bLoop = true;
+
+	if (FAILED(m_pGameInstance->Add_GameObject(
+		ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_AtlasInstanceEffect"),
 		ETOUI(LEVEL::GAMEPLAY), strLayerTag, &Desc)))
 		return E_FAIL;
 

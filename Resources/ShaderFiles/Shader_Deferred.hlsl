@@ -106,7 +106,8 @@ PS_OUT_LIGHT PS_MAIN_DIRECTIONAL(PS_IN In)
     vector vLook = vWorldPos - g_vCamPosition;
 
     Out.vSpecular = (g_vLightSpecular * g_vMtrlSpecular) *
-                pow(saturate(dot(normalize(vReflect) * -1.f, normalize(vLook))), 50.f);
+                pow(saturate(dot(normalize(vReflect) * -1.f, normalize(vLook))), 50.f) *
+                vNormalDesc.a;
 
     return Out;
 }
@@ -150,7 +151,7 @@ PS_OUT_LIGHT PS_MAIN_POINT(PS_IN In)
                 (
                         (g_vLightSpecular * g_vMtrlSpecular) *
                         pow(saturate(dot(normalize(vReflect) * -1.f, normalize(vLook))), 50.f)
-                ) * fAtt;
+                ) * fAtt * vNormalDesc.a;
 
     return Out;
 }
@@ -167,7 +168,7 @@ PS_OUT_BACKBUFFER PS_MAIN_COMBINED(PS_IN In)
     vector vShade = g_ShadeTexture.Sample(LinearSampler, In.vTexcoord);
     vector vSpecular = g_SpecularTexture.Sample(LinearSampler, In.vTexcoord);
 
-    Out.vBackBuffer = vDiffuse * vShade + vSpecular;
+    Out.vBackBuffer = vDiffuse * vShade + saturate(vSpecular);
 
     return Out;
 }

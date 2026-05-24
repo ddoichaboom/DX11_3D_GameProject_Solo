@@ -88,6 +88,7 @@ Framework/
 - **ImGui/RTTR 충돌**: `#define new DBG_NEW` 가 ImGui/RTTR 와 충돌 → `#undef new` 필요. RTTR `registration.h` 는 Engine 헤더 전 include 또는 `#undef new` 후 include
 - **C++17 필수**: `/std:c++17` (filesystem)
 - **RTTR 0.9.6**: `NOMINMAX` 전처리기, `/permissive` 아니요, getter 0인자/setter 1인자 멤버 함수 패턴. abstract 등록 가능, private/protected 소멸자 concrete 는 등록 불가
+- **bRestartOnEnter (CharacterAnimTable bind 마지막 필드)**: 1회성 리액션/공격 클립은 반드시 `true`. `CModel::Set_AnimationIndex_WithBlend` 가 `true` 일 때만 `Reset_TrackPosition()` 호출 → `false` 면 이전 트랙 끝 위치에서 시작해 두번째 진입부터 애니가 안 보임
 
 ## Editor / 외부 라이브러리 격리
 
