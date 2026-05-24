@@ -506,9 +506,26 @@ HRESULT CNavMeshEditorTool::Save_SceneData()
 	}
 
 	SCENE_DATA SceneData{};
-	wcscpy_s(SceneData.szNavDataPath, NAVDATA_PATH);
+	SCENE_DATA ExistingSceneData{};
+	const _bool bExistingSceneLoaded = SUCCEEDED(CSceneSerializer::Load(SCENEDATA_PATH, &ExistingSceneData));
+
+	if (true == bExistingSceneLoaded && 0 != ExistingSceneData.szNavDataPath[0])
+		wcscpy_s(SceneData.szNavDataPath, ExistingSceneData.szNavDataPath);
+	else
+		wcscpy_s(SceneData.szNavDataPath, NAVDATA_PATH);
+
 	SceneData.SpawnPoints = m_SpawnPoints;
 	SceneData.SceneLights = m_SceneLights;
+
+	if (m_SpawnPoints.empty())
+	{
+		if (true == bExistingSceneLoaded &&
+			false == ExistingSceneData.SpawnPoints.empty())
+		{
+			SceneData.SpawnPoints = ExistingSceneData.SpawnPoints;
+			Log_EditStatus(LOG_LEVEL::INFO, "Preserved existing SpawnPoints.");
+		}
+	}
 
 	if (FAILED(CSceneSerializer::Save(SCENEDATA_PATH, SceneData)))
 	{
@@ -1320,10 +1337,23 @@ HRESULT CNavMeshEditorTool::Add_PointLight(_float fPickX, _float fPickY, _uint i
 		}
 	}
 
+	_uint iPointLightCount = 0;
 
+	for (const SCENE_LIGHT& SceneLight : m_SceneLights)
+	{
+		if (LIGHT::POINT != SceneLight.eType)
+			continue;
+
+		if (0 == wcsncmp(SceneLight.szName, TEXT("PointLight"), 10))
+			++iPointLightCount;
+	}
+
+	_tchar szLightName[MAX_PATH] = {};
+	swprintf_s(szLightName, TEXT("PointLight_%02u"), iPointLightCount);
 
 	SCENE_LIGHT Light{};
 	Light.eType = LIGHT::POINT;
+	wcscpy_s(Light.szName, szLightName);
 	Light.vPosition = _float4(vLightPosition.x, vLightPosition.y, vLightPosition.z, 1.f);
 	Light.fRange = 16.f;
 	Light.vDiffuse = _float4(0.55f, 0.45f, 0.32f, 1.f);

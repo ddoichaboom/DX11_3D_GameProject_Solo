@@ -56,6 +56,30 @@ static void Build_DefaultThroneRoomLights(vector<SCENE_LIGHT>& SceneLights, cons
 	SceneLights.push_back(PointLight);
 }
 
+static _bool Is_TorchLightName(const _tchar* pName)
+{
+	if (nullptr == pName || 0 == pName[0])
+		return false;
+
+	return 0 == wcsncmp(pName, TEXT("Torch"), 5);
+}
+
+static void Collect_TorchLights(const SCENE_DATA& SceneData, vector<SCENE_LIGHT>& TorchLights)
+{
+	TorchLights.clear();
+
+	for (const SCENE_LIGHT& SceneLight : SceneData.SceneLights)
+	{
+		if (LIGHT::POINT != SceneLight.eType)
+			continue;
+
+		if (false == Is_TorchLightName(SceneLight.szName))
+			continue;
+
+		TorchLights.push_back(SceneLight);
+	}
+}
+
 _bool CLevel_GamePlay::Apply_PlayerSpawnFromCell(CPlayer::PLAYER_DESC& Desc, CNavMesh* pNavMesh, _int iCellIndex)
 {
 	if (nullptr == pNavMesh)

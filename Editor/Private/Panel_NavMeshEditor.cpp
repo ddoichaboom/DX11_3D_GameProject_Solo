@@ -306,12 +306,28 @@ void CPanel_NavMeshEditor::Render()
 			if (nullptr == pLight)
 				continue;
 
-			_char szLabel[128] = {};
-			sprintf_s(
-				szLabel,
-				"%u. %s",
-				i,
-				Get_LightTypeLabel(pLight->eType));
+			_char szLabel[MAX_PATH] = {};
+			char szName_UTF8[MAX_PATH] = {};
+			::WideCharToMultiByte(CP_UTF8, 0, pLight->szName, -1,
+				szName_UTF8, sizeof(szName_UTF8), nullptr, nullptr);
+
+			if ('\0' == szName_UTF8[0])
+			{
+				sprintf_s(
+					szLabel,
+					"%u. %s",
+					i,
+					Get_LightTypeLabel(pLight->eType));
+			}
+			else
+			{
+				sprintf_s(
+					szLabel,
+					"%u. %s / %s",
+					i,
+					Get_LightTypeLabel(pLight->eType),
+					szName_UTF8);
+			}
 
 			if (ImGui::Selectable(szLabel, m_pTool->Get_SelectedLightIndex() == static_cast<_int>(i)))
 				m_pTool->Set_SelectedLightIndex(static_cast<_int>(i));
@@ -337,8 +353,52 @@ void CPanel_NavMeshEditor::Render()
 			ImGui::Separator();
 			ImGui::TextDisabled("Selected Light");
 
+			char szLightName_UTF8[MAX_PATH] = {};
+			::WideCharToMultiByte(CP_UTF8, 0, Light.szName, -1,
+				szLightName_UTF8, sizeof(szLightName_UTF8), nullptr, nullptr);
+
+			if (ImGui::InputText("Light Name", szLightName_UTF8, sizeof(szLightName_UTF8)))
+			{
+				_tchar szLightName_W[MAX_PATH] = {};
+				::MultiByteToWideChar(CP_UTF8, 0, szLightName_UTF8, -1,
+					szLightName_W, MAX_PATH);
+
+				wcscpy_s(Light.szName, szLightName_W);
+				m_pTool->Set_SelectedSceneLight(Light);
+			}
+
 			if (LIGHT::POINT == Light.eType)
 			{
+				if (ImGui::Button("PointLight(Default)"))
+				{
+					_tchar szPresetName[MAX_PATH] = {};
+					swprintf_s(szPresetName, TEXT("PointLight_%02d"), iSelectedLight);
+
+					wcscpy_s(Light.szName, szPresetName);
+					Light.fRange = 16.f;
+					Light.vDiffuse = _float4(0.55f, 0.45f, 0.32f, 1.f);
+					Light.vAmbient = _float4(0.04f, 0.035f, 0.03f, 1.f);
+					Light.vSpecular = _float4(0.20f, 0.18f, 0.14f, 1.f);
+
+					m_pTool->Set_SelectedSceneLight(Light);
+				}
+
+				ImGui::SameLine();
+
+				if (ImGui::Button("Torch"))
+				{
+					_tchar szPresetName[MAX_PATH] = {};
+					swprintf_s(szPresetName, TEXT("Torch_%02d"), iSelectedLight);
+
+					wcscpy_s(Light.szName, szPresetName);
+					Light.fRange = 10.f;
+					Light.vDiffuse = _float4(1.00f, 0.34f, 0.12f, 1.f);
+					Light.vAmbient = _float4(0.055f, 0.018f, 0.010f, 1.f);
+					Light.vSpecular = _float4(0.25f, 0.09f, 0.035f, 1.f);
+
+					m_pTool->Set_SelectedSceneLight(Light);
+				}
+
 				_float3 vPosition = _float3(Light.vPosition.x, Light.vPosition.y, Light.vPosition.z);
 
 				if (ImGui::DragFloat3("Position", &vPosition.x, 0.1f, -1000.f, 1000.f, "%.2f"))
