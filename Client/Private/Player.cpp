@@ -109,6 +109,32 @@ _bool CPlayer::Try_GetDashHUDWorldPosition(_float3* pOutPosition) const
 	return true;
 }
 
+_bool CPlayer::Teleport_ToNavCell(CNavMesh* pNavMesh, _int iCellIndex)
+{
+	if (nullptr == pNavMesh || nullptr == m_pTransformCom)
+		return false;
+
+	const CCell* pCell = pNavMesh->Get_Cell(iCellIndex);
+	if (nullptr == pCell)
+		return false;
+
+	_float3 vPosition = pCell->Get_Center();
+	vPosition.y = pNavMesh->Compute_Height(iCellIndex, vPosition);
+
+	m_pTransformCom->Set_State(
+		STATE::POSITION,
+		XMVectorSetW(XMLoadFloat3(&vPosition), 1.f));
+
+	if (nullptr != m_pNavigationAgent)
+	{
+		if (false == m_pNavigationAgent->Has_NavMesh())
+			m_pNavigationAgent->Bind_NavMesh(pNavMesh);
+
+		m_pNavigationAgent->Set_CurrentCellIndex(iCellIndex);
+	}
+
+	return true;
+}
 _bool CPlayer::Try_Teleport(_float fSearchRadius, _float fConeAngleDegrees)
 {
 	CMonster* pTarget = Find_Target(fSearchRadius, fConeAngleDegrees);

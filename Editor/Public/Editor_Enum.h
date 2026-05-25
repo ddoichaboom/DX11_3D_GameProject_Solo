@@ -7,7 +7,7 @@ namespace Editor
 
 	enum class LOG_LEVEL { INFO, WARNING, ERROR_, END };	// ERROR는 Windows 매크로와 충돌
 
-	enum class EDITOR_TOOL_MODE { OBJECT, NAVMESH, LIGHT, UI_CANVAS, END };
+	enum class EDITOR_TOOL_MODE { OBJECT, NAVMESH, LIGHT, UI_CANVAS, CAM_COLLIDER, END };
 
 	enum class DRAG_MODE : _uint
 	{

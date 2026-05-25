@@ -126,9 +126,40 @@ void CHUD_GamePlay::Update(_float fTimeDelta)
 		Resolve_Player();
 		Cache_Viewport();
 		Cache_Dash_Offsets();
+
+		const HUD_SLOT eBoxSlots[] = {
+			HUD_SLOT::SKILL_C_KEYBOX, HUD_SLOT::SKILL_F_KEYBOX, HUD_SLOT::SKILL_Q_KEYBOX,
+			HUD_SLOT::SKILL_E_KEYBOX, HUD_SLOT::SKILL_R_KEYBOX,
+				HUD_SLOT::QTE_KEYBOX,
+		};
+		for (HUD_SLOT eBox : eBoxSlots)
+			if (CUI_Image* pBox = m_pUI[ETOUI(eBox)])
+			{
+				pBox->Set_SweepMode(UI_SWEEP_MODE::BOX);
+				pBox->Set_Color(_float4{ 0.3f, 0.3f, 0.3f, 0.5f });
+			}
+
+		if (CUI_Image* pLine = m_pUI[ETOUI(HUD_SLOT::QUEST_UNDERLINE)])
+		{
+			pLine->Set_SweepMode(UI_SWEEP_MODE::FILL);
+			pLine->Set_Color(_float4{ 1.f, 1.f, 1.f, 0.85f });
+		}
+
+		const HUD_SLOT eGaugeVSlots[] = {
+			HUD_SLOT::SKILL_C_COOL, HUD_SLOT::SKILL_F_COOL, HUD_SLOT::SKILL_Q_COOL,
+			HUD_SLOT::SKILL_E_COOL, HUD_SLOT::SKILL_R_COOL, HUD_SLOT::QTE_COOL,
+		};
+		for (HUD_SLOT eGV : eGaugeVSlots)
+			if (CUI_Image* pGV = m_pUI[ETOUI(eGV)])
+				pGV->Set_SweepMode(UI_SWEEP_MODE::GAUGE_V);
 		Set_MonsterBars_Visible(false);
 		Set_PlayerBars_Visible(false);
 		Set_PlayerDash_Visible(false);
+		if (nullptr != m_pPlayer)
+		{
+			m_eCachedWeaponId = m_pPlayer->Get_EquippedWeapon();
+			Refresh_SkillIcons(m_eCachedWeaponId);
+		}
 		m_bCached = true;
 	}
 
@@ -153,6 +184,7 @@ void CHUD_GamePlay::Update(_float fTimeDelta)
 	Tick_PlayerBars(fTimeDelta);
 	Tick_Dash(fTimeDelta);
 	Tick_Sweep(fTimeDelta);
+	Tick_Skills(fTimeDelta);
 }
 
 void CHUD_GamePlay::Late_Update(_float fTimeDelta)
@@ -175,6 +207,15 @@ void CHUD_GamePlay::Cache_UIs()
 	  TEXT("HUD_Dash_Step1"), TEXT("HUD_Dash_Step1_Glow"),
 	  TEXT("HUD_Dash_Step2"), TEXT("HUD_Dash_Step2_Glow"),
 	  TEXT("HUD_Dash_Step3"), TEXT("HUD_Dash_Step3_Glow"),
+	  TEXT("HUD_Skill_C_Base"), TEXT("HUD_Skill_C_Icon"), TEXT("HUD_Skill_C_Cool"),
+	  TEXT("HUD_Skill_F_Base"), TEXT("HUD_Skill_F_Icon"), TEXT("HUD_Skill_F_Cool"),
+	  TEXT("HUD_Skill_Q_Base"), TEXT("HUD_Skill_Q_Icon"), TEXT("HUD_Skill_Q_Cool"),
+	  TEXT("HUD_Skill_E_Base"), TEXT("HUD_Skill_E_Icon"), TEXT("HUD_Skill_E_Cool"),
+	  TEXT("HUD_Skill_R_Base"), TEXT("HUD_Skill_R_Icon"), TEXT("HUD_Skill_R_Cool"),
+	  TEXT("HUD_Skill_C_KeyBox"), TEXT("HUD_Skill_F_KeyBox"), TEXT("HUD_Skill_Q_KeyBox"), TEXT("HUD_Skill_E_KeyBox"), TEXT("HUD_Skill_R_KeyBox"),
+	  TEXT("HUD_QTE_Frame"), TEXT("HUD_QTE_Icon"), TEXT("HUD_QTE_KeyBox"), TEXT("HUD_QTE_Cool"), TEXT("HUD_QTE_Active"),
+	  TEXT("HUD_Skill_C_Active"), TEXT("HUD_Skill_F_Active"), TEXT("HUD_Skill_Q_Active"), TEXT("HUD_Skill_E_Active"), TEXT("HUD_Skill_R_Active"),
+	  TEXT("HUD_Quest_Alarm"), TEXT("HUD_Quest_Underline"),
 	};
 
 	for (_uint i = 0; i < static_cast<_uint>(HUD_SLOT::END); ++i)
@@ -194,6 +235,15 @@ void CHUD_GamePlay::Cache_UIs()
 				const _wstring& strName = pText->Get_ObjectName();
 				if (strName == TEXT("HUD_MonsterLevel"))     m_pUI_MonsterLevel = pText;
 				else if (strName == TEXT("HUD_MonsterName")) m_pUI_MonsterName = pText;
+					else if (strName == TEXT("HUD_Skill_C_Key")) m_pSkillKeyText[0] = pText;
+					else if (strName == TEXT("HUD_Skill_F_Key")) m_pSkillKeyText[1] = pText;
+					else if (strName == TEXT("HUD_Skill_Q_Key")) m_pSkillKeyText[2] = pText;
+					else if (strName == TEXT("HUD_Skill_E_Key")) m_pSkillKeyText[3] = pText;
+					else if (strName == TEXT("HUD_Skill_R_Key")) m_pSkillKeyText[4] = pText;
+					else if (strName == TEXT("HUD_QTE_Key")) m_pSkillKeyText[5] = pText;
+					else if (strName == TEXT("HUD_Quest_Title")) m_pQuestText[0] = pText;
+					else if (strName == TEXT("HUD_Quest_Objective")) m_pQuestText[1] = pText;
+					else if (strName == TEXT("HUD_Quest_Collect")) m_pQuestText[2] = pText;
 			}
 		}
 	}
@@ -553,6 +603,114 @@ void CHUD_GamePlay::Tick_Dash(_float fTimeDelta)
 	(void)iChargeMax;
 }
 
+
+
+void CHUD_GamePlay::Tick_Skills(_float fTimeDelta)
+{
+	if (nullptr == m_pPlayer)
+		return;
+
+	const _bool bQTEWin = m_pPlayer->Is_QTEWindowActive();
+	const _bool bQTECool = m_pPlayer->Is_QTEOnCooldown(QTE_TYPE::EXTREME_DASH);
+	const _bool bQTEReady = bQTEWin && !bQTECool;
+
+	if (bQTEWin)
+	{
+		m_bCombatInput = true;
+		m_fSinceCombatInput = 0.f;
+		Set_PlayerBars_Visible(true);
+	}
+	if (CUI_Image* pQF = m_pUI[ETOUI(HUD_SLOT::QTE_FRAME)]) 
+		pQF->Set_Visible(bQTEWin);
+	if (CUI_Image* pQA = m_pUI[ETOUI(HUD_SLOT::QTE_ACTIVE)]) 
+		pQA->Set_Visible(bQTEReady);
+	if (CUI_Image* pQI = m_pUI[ETOUI(HUD_SLOT::QTE_ICON)]) 
+		pQI->Set_Visible(bQTEWin);
+	if (CUI_Image* pQB = m_pUI[ETOUI(HUD_SLOT::QTE_KEYBOX)]) 
+		pQB->Set_Visible(bQTEWin);
+	if (m_pSkillKeyText[5]) 
+		m_pSkillKeyText[5]->Set_Visible(bQTEReady);
+	if (CUI_Image* pQC = m_pUI[ETOUI(HUD_SLOT::QTE_COOL)])
+	{
+		if (bQTEWin && bQTECool)
+		{
+			_float fQR = m_pPlayer->Get_QTECooldownTimer(QTE_TYPE::EXTREME_DASH);
+			_float fQM = m_pPlayer->Get_QTECooldownMax(QTE_TYPE::EXTREME_DASH);
+			pQC->Set_GaugeVertical(true);
+			pQC->Set_GaugeRatio((fQM > 0.f) ? (1.f - fQR / fQM) : 1.f);
+			pQC->Set_Visible(true);
+		}
+		else
+			pQC->Set_Visible(false);
+	}
+
+	EQUIPPED_WEAPON_ID eWeapon = m_pPlayer->Get_EquippedWeapon();
+	if (eWeapon != m_eCachedWeaponId)
+	{
+		Refresh_SkillIcons(eWeapon);
+		m_eCachedWeaponId = eWeapon;
+	}
+
+	struct COOL_PAIR { HUD_SLOT eCool; HUD_SLOT eActive; _float fRemain; _float fMax; };
+	const COOL_PAIR Pairs[] = {
+		{ HUD_SLOT::SKILL_C_COOL, HUD_SLOT::SKILL_C_ACTIVE, m_pPlayer->Get_WeaponSwapCooldownTimer(),         m_pPlayer->Get_WeaponSwapCooldownMax() },
+		{ HUD_SLOT::SKILL_F_COOL, HUD_SLOT::SKILL_F_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::F), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::F) },
+		{ HUD_SLOT::SKILL_Q_COOL, HUD_SLOT::SKILL_Q_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::Q), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::Q) },
+		{ HUD_SLOT::SKILL_E_COOL, HUD_SLOT::SKILL_E_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::E), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::E) },
+		{ HUD_SLOT::SKILL_R_COOL, HUD_SLOT::SKILL_R_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::R), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::R) },
+	};
+
+	for (_int i = 0; i < 5; ++i)
+	{
+		const COOL_PAIR& P = Pairs[i];
+		CUI_Image* pCool = m_pUI[ETOUI(P.eCool)];
+		if (nullptr == pCool)
+			continue;
+
+		if (m_bCombatInput && P.fRemain > 0.f && P.fMax > 0.f)
+		{
+			pCool->Set_GaugeVertical(true);
+			pCool->Set_GaugeRatio(1.f - (P.fRemain / P.fMax));
+			pCool->Set_Visible(true);
+		}
+		else
+		{
+			pCool->Set_Visible(false);
+		}
+
+		if (m_fPrevSkillCooldown[i] > 0.f && P.fRemain <= 0.f)
+			m_fSkillActiveFlash[i] = SKILL_ACTIVE_FLASH;
+		if (m_fSkillActiveFlash[i] > 0.f)
+			m_fSkillActiveFlash[i] -= fTimeDelta;
+		m_fPrevSkillCooldown[i] = P.fRemain;
+
+		if (CUI_Image* pAct = m_pUI[ETOUI(P.eActive)])
+		{
+			const _bool bReady = m_bCombatInput && !(P.fRemain > 0.f && P.fMax > 0.f);
+			pAct->Set_Visible((4 == i) ? bReady : (m_bCombatInput && m_fSkillActiveFlash[i] > 0.f));
+		}
+	}
+}
+
+void CHUD_GamePlay::Refresh_SkillIcons(EQUIPPED_WEAPON_ID eWeapon)
+{
+	if (EQUIPPED_WEAPON_ID::NONE == eWeapon)
+		return;
+
+	const _uint iLevel = ETOUI(LEVEL::GAMEPLAY);
+	const _bool bKasaka = (EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eWeapon);
+
+	auto SetIcon = [&](HUD_SLOT eSlot, const _tchar* pProto)
+	{
+		if (CUI_Image* pUI = m_pUI[ETOUI(eSlot)])
+			pUI->Set_TextureByProto(iLevel, pProto);
+	};
+
+	SetIcon(HUD_SLOT::SKILL_C_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKK"));
+	SetIcon(HUD_SLOT::SKILL_F_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_Kasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_KK"));
+	SetIcon(HUD_SLOT::SKILL_E_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_Kasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_KK"));
+}
+
 void CHUD_GamePlay::Set_MonsterBars_Visible(_bool bVisible)
 {
 	const HUD_SLOT eSlots[] = {
@@ -582,11 +740,24 @@ void CHUD_GamePlay::Set_PlayerBars_Visible(_bool bVisible)
 		m_fSinceCombatInput = 0.f;
 	}
 
+	for (_int i = 0; i < 5; ++i)
+		if (m_pSkillKeyText[i]) m_pSkillKeyText[i]->Set_Visible(bVisible);
+
+	for (_int i = 0; i < 3; ++i)
+		if (m_pQuestText[i]) m_pQuestText[i]->Set_Visible(bVisible);
+
 	const HUD_SLOT eSlots[] = {
 				HUD_SLOT::PLAYER_HP_BACK, HUD_SLOT::PLAYER_HP_REDUCE, HUD_SLOT::PLAYER_HP_FILL,
 				HUD_SLOT::PLAYER_HP_BARLIGHT,
 				HUD_SLOT::PLAYER_MP_BACK, HUD_SLOT::PLAYER_MP_REDUCE, HUD_SLOT::PLAYER_MP_FILL,
 				HUD_SLOT::PLAYER_MP_BARLIGHT,
+				HUD_SLOT::SKILL_C_BASE, HUD_SLOT::SKILL_C_ICON,
+				HUD_SLOT::SKILL_F_BASE, HUD_SLOT::SKILL_F_ICON,
+				HUD_SLOT::SKILL_Q_BASE, HUD_SLOT::SKILL_Q_ICON,
+				HUD_SLOT::SKILL_E_BASE, HUD_SLOT::SKILL_E_ICON,
+				HUD_SLOT::SKILL_R_BASE, HUD_SLOT::SKILL_R_ICON,
+				HUD_SLOT::SKILL_C_KEYBOX, HUD_SLOT::SKILL_F_KEYBOX, HUD_SLOT::SKILL_Q_KEYBOX, HUD_SLOT::SKILL_E_KEYBOX, HUD_SLOT::SKILL_R_KEYBOX,
+				HUD_SLOT::QUEST_ALARM, HUD_SLOT::QUEST_UNDERLINE,
 	};
 
 	for (HUD_SLOT eSlot : eSlots)

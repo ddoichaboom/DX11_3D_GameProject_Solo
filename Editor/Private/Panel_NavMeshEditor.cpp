@@ -80,6 +80,82 @@ void CPanel_NavMeshEditor::Render()
 			bLightMode ? EDITOR_TOOL_MODE::LIGHT : EDITOR_TOOL_MODE::OBJECT);
 	}
 
+	_bool bCamColliderMode = m_pPanel_Manager->Is_CamColliderMode();
+	if (ImGui::Checkbox("CamCollider Mode", &bCamColliderMode))
+	{
+		m_pPanel_Manager->Set_ToolMode(
+			bCamColliderMode ? EDITOR_TOOL_MODE::CAM_COLLIDER : EDITOR_TOOL_MODE::OBJECT);
+	}
+
+	ImGui::Separator();
+
+	ImGui::TextDisabled("CamCollider Authoring");
+
+	if (ImGui::Button("Clear Cam Picks"))
+		m_pTool->Clear_CamColliderPickPoints();
+
+	ImGui::SameLine();
+
+	const _bool bCreateCamDisabled = m_pTool->Get_NumCamColliderPickPoints() < 3;
+	if (bCreateCamDisabled)
+		ImGui::BeginDisabled();
+
+	if (ImGui::Button("Create Cam Face"))
+		m_pTool->Create_CamColliderFace();
+
+	if (bCreateCamDisabled)
+		ImGui::EndDisabled();
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Clear CamColliders"))
+		m_pTool->Clear_CamColliders();
+
+	const _uint iNumCamFaces = m_pTool->Get_NumCamColliderFaces();
+	if (0 < iNumCamFaces)
+	{
+		ImGui::BeginChild("CamColliderFaceList", ImVec2(0.f, 86.f), true);
+
+		for (_uint i = 0; i < iNumCamFaces; ++i)
+		{
+			const CAMCOLLIDER_FACE* pFace = m_pTool->Get_CamColliderFace(i);
+			if (nullptr == pFace)
+				continue;
+
+			_char szLabel[128] = {};
+			sprintf_s(szLabel, "%u. Face (%d, %d, %d)", i,
+				pFace->iVertexIndices[0], pFace->iVertexIndices[1], pFace->iVertexIndices[2]);
+
+			if (ImGui::Selectable(szLabel, m_pTool->Get_SelectedCamColliderFaceIndex() == static_cast<_int>(i)))
+				m_pTool->Set_SelectedCamColliderFaceIndex(static_cast<_int>(i));
+		}
+
+		ImGui::EndChild();
+	}
+	else
+	{
+		ImGui::TextDisabled("No CamCollider faces.");
+	}
+
+	const _bool bNoSelectedCamFace = INVALID_INDEX == m_pTool->Get_SelectedCamColliderFaceIndex();
+	if (bNoSelectedCamFace)
+		ImGui::BeginDisabled();
+
+	if (ImGui::Button("Flip Cam Face"))
+		m_pTool->Flip_SelectedCamColliderFace();
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Delete Cam Face"))
+		m_pTool->Delete_SelectedCamColliderFace();
+
+	if (bNoSelectedCamFace)
+		ImGui::EndDisabled();
+
+	ImGui::Text("Cam Picks: %u", m_pTool->Get_NumCamColliderPickPoints());
+	ImGui::Text("Cam Vertices: %u", m_pTool->Get_NumCamColliderVertices());
+	ImGui::Text("Cam Faces: %u", m_pTool->Get_NumCamColliderFaces());
+
 	ImGui::Separator();
 
 	if (ImGui::Button("Clear Picks"))

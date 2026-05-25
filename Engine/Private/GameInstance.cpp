@@ -12,6 +12,7 @@
 #include "Frustum.h"
 #include "Target_Manager.h"
 #include "Sound_Manager.h"
+#include "Shadow.h"
 
 IMPLEMENT_SINGLETON(CGameInstance)
 
@@ -59,6 +60,10 @@ HRESULT CGameInstance::Initialize_Engine(const ENGINE_DESC& EngineDesc, ID3D11De
 
 	m_pPipeLine = CPipeLine::Create();
 	if (nullptr == m_pPipeLine)
+		return E_FAIL;
+
+	m_pShadow = CShadow::Create();
+	if (nullptr == m_pShadow)
 		return E_FAIL;
 
 	m_pInput_Device = CInput_Device::Create(EngineDesc.hWnd);
@@ -438,6 +443,23 @@ _bool CGameInstance::Is_In_Frustum_LocalSpace(_fvector vLocalPos, _float fRange)
 	return m_pFrustum->Is_InLocalSpace(vLocalPos, fRange);
 }
 
+const _float4x4* CGameInstance::Get_Shadow_Transform(D3DTS eState) const
+{
+	if (nullptr == m_pShadow)
+		return nullptr;
+
+	return m_pShadow->Get_Transform(eState);
+}
+
+HRESULT CGameInstance::Add_ShadowLight(const SHADOW_LIGHT_DESC& ShadowDesc)
+{
+	if (nullptr == m_pShadow)
+		return E_FAIL;
+
+	return m_pShadow->Add_ShadowLight(ShadowDesc);
+}
+
+
 #pragma endregion
 
 #pragma region INPUT_DEVICE
@@ -601,6 +623,7 @@ HRESULT CGameInstance::Measure_Font(const _wstring& strFontTag, const _tchar* pT
 void CGameInstance::Release_Engine()
 {
 	Safe_Release(m_pSound_Manager);
+	Safe_Release(m_pShadow);
 	Safe_Release(m_pCollision_Manager);
 	Safe_Release(m_pFont_Manager);
 	Safe_Release(m_pLight_Manager);

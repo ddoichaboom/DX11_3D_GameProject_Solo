@@ -6,7 +6,7 @@ namespace
 {
     static constexpr char SCENEDATA_MAGIC[4] = { 'S', 'L', 'S', 'C' };
     static constexpr _uint SCENEDATA_VERSION_MIN = { 1 };
-    static constexpr _uint SCENEDATA_VERSION_LATEST = { 4 };
+    static constexpr _uint SCENEDATA_VERSION_LATEST = { 5 };
 
     HRESULT Write_SpawnPoint(CBinaryWriter& Writer, const SPAWN_POINT& Point)
     {
@@ -155,6 +155,31 @@ namespace
 
         return S_OK;
     }
+
+    HRESULT Write_CamColliderFace(CBinaryWriter& Writer, const CAMCOLLIDER_FACE& Face)
+    {
+        if (FAILED(Writer.WriteArray(Face.iVertexIndices, sizeof(_int), 3)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Face.vNormal)))
+            return E_FAIL;
+
+        return S_OK;
+    }
+
+    HRESULT Read_CamColliderFace(CBinaryReader& Reader, CAMCOLLIDER_FACE* pOutFace)
+    {
+        if (nullptr == pOutFace)
+            return E_FAIL;
+
+        if (FAILED(Reader.ReadArray(pOutFace->iVertexIndices, sizeof(_int), 3)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutFace->vNormal)))
+            return E_FAIL;
+
+        return S_OK;
+    }
 }
 
 HRESULT CSceneSerializer::Save(const _tchar* pSceneDataPath, const SCENE_DATA& SceneData)
@@ -170,6 +195,8 @@ HRESULT CSceneSerializer::Save(const _tchar* pSceneDataPath, const SCENE_DATA& S
     const _uint iVersion = SCENEDATA_VERSION_LATEST;
     const _uint iNumSpawnPoints = static_cast<_uint>(SceneData.SpawnPoints.size());
     const _uint iNumSceneLights = static_cast<_uint>(SceneData.SceneLights.size());
+    const _uint iNumCamColliderVertices = static_cast<_uint>(SceneData.CamColliderVertices.size());
+    const _uint iNumCamColliderFaces = static_cast<_uint>(SceneData.CamColliderFaces.size());
 
     if (FAILED(Writer.WriteMagic(SCENEDATA_MAGIC, 4)))
         return E_FAIL;
@@ -198,6 +225,24 @@ HRESULT CSceneSerializer::Save(const _tchar* pSceneDataPath, const SCENE_DATA& S
             return E_FAIL;
     }
 
+    if (FAILED(Writer.Write(iNumCamColliderVertices)))
+        return E_FAIL;
+
+    for (const _float3& vPosition : SceneData.CamColliderVertices)
+    {
+        if (FAILED(Writer.Write(vPosition)))
+            return E_FAIL;
+    }
+
+    if (FAILED(Writer.Write(iNumCamColliderFaces)))
+        return E_FAIL;
+
+    for (const CAMCOLLIDER_FACE& Face : SceneData.CamColliderFaces)
+    {
+        if (FAILED(Write_CamColliderFace(Writer, Face)))
+            return E_FAIL;
+    }
+
     return S_OK;
 }
 
@@ -214,6 +259,8 @@ HRESULT CSceneSerializer::Load(const _tchar* pSceneDataPath, SCENE_DATA* pOutSce
     _uint iVersion = {};
     _uint iNumSpawnPoints = {};
     _uint iNumSceneLights = {};
+    _uint iNumCamColliderVertices = {};
+    _uint iNumCamColliderFaces = {};
 
     if (FAILED(Reader.ReadMagic(SCENEDATA_MAGIC, 4)))
         return E_FAIL;
@@ -252,6 +299,34 @@ HRESULT CSceneSerializer::Load(const _tchar* pSceneDataPath, SCENE_DATA* pOutSce
         for (SCENE_LIGHT& Light : SceneData.SceneLights)
         {
             if (FAILED(Read_SceneLight(Reader, &Light, iVersion)))
+                return E_FAIL;
+        }
+    }
+
+    SceneData.CamColliderVertices.clear();
+    SceneData.CamColliderFaces.clear();
+
+    if (iVersion >= 5)
+    {
+        if (FAILED(Reader.Read(&iNumCamColliderVertices)))
+            return E_FAIL;
+
+        SceneData.CamColliderVertices.resize(iNumCamColliderVertices);
+
+        for (_float3& vPosition : SceneData.CamColliderVertices)
+        {
+            if (FAILED(Reader.Read(&vPosition)))
+                return E_FAIL;
+        }
+
+        if (FAILED(Reader.Read(&iNumCamColliderFaces)))
+            return E_FAIL;
+
+        SceneData.CamColliderFaces.resize(iNumCamColliderFaces);
+
+        for (CAMCOLLIDER_FACE& Face : SceneData.CamColliderFaces)
+        {
+            if (FAILED(Read_CamColliderFace(Reader, &Face)))
                 return E_FAIL;
         }
     }

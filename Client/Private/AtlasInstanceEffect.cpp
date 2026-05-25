@@ -44,6 +44,7 @@ HRESULT CAtlasInstanceEffect::Initialize(void* pArg)
 	m_vUVPadding = pDesc->vUVPadding;
 	m_vColor = pDesc->vColor;
 	m_fAlpha = pDesc->fAlpha;
+	m_iShaderPass = pDesc->iShaderPass;
 	m_bLoop = pDesc->bLoop;
 
 	if (FAILED(Ready_Components(pDesc)))
@@ -73,7 +74,7 @@ HRESULT CAtlasInstanceEffect::Render()
 	if (FAILED(Bind_ShaderResources()))
 		return E_FAIL;
 
-	if (FAILED(m_pShaderCom->Begin(0)))
+	if (FAILED(m_pShaderCom->Begin(m_iShaderPass)))
 		return E_FAIL;
 
 	if (FAILED(m_pVIBufferInstanceCom->Bind_Resources()))

@@ -41,6 +41,11 @@ public:
 	void                        Set_GaugeRatio(_float fRatio);
 	_float                      Get_GaugeRatio() const { return m_fGaugeProgress; }
 
+	void                        Set_GaugeVertical(_bool bVertical) { m_bGaugeVertical = bVertical; }
+	_bool                       Is_GaugeVertical() const { return m_bGaugeVertical; }
+
+	HRESULT                     Set_TextureByProto(_uint iLevel, const _tchar* pProtoTag);
+
 	void                        Set_Center(_float fCenterX, _float fCenterY);
 	void                        Set_Size(_float fSizeX, _float fSizeY);
 
@@ -70,6 +75,7 @@ protected:
 
 	_float                      m_fAlpha = { 1.f };
 	_float						m_fGaugeProgress = { 1.f };
+	_bool                       m_bGaugeVertical = { false };
 	_float4                     m_vColor = { 1.f, 1.f, 1.f, 1.f };
 	UI_SWEEP_MODE               m_eSweepMode = { UI_SWEEP_MODE::NONE };
 	_float4                     m_vUVOffset = { 0.f, 0.f, 0.f, 0.f };

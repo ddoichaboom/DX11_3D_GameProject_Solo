@@ -57,6 +57,7 @@ private:
 
 private:
 	HRESULT						Render_Priority();
+	HRESULT						Render_Shadow();
 	HRESULT						Render_NonBlend();
 	HRESULT						Render_Blend();
 	HRESULT						Render_UI();

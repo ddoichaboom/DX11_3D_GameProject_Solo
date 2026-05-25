@@ -24,6 +24,8 @@ public:
 		_float				fPitchMax = {1.0f};
 		_float				fMouseSensor = {0.003f};
 		_float				fArmLerpSpeed = {8.f};
+		const vector<_float3>* pCamColliderVertices = { nullptr };
+		const vector<CAMCOLLIDER_FACE>* pCamColliderFaces = { nullptr };
 	}CAMERA_FOLLOW_DESC;
 
 private:
@@ -46,9 +48,13 @@ private:
 	CSpringArm*				m_pSpringArm = { nullptr };
 
 	_wstring				m_strTargetLayerTag = TEXT("Layer_Player");
+	vector<_float3>			m_CamColliderVertices;
+	vector<CAMCOLLIDER_FACE> m_CamColliderFaces;
+	_float					m_fCamColliderPadding = { 0.25f };
 
 private:
 	HRESULT					Ready_Components(const CAMERA_FOLLOW_DESC& Desc);
+	void					Apply_CamCollider();
 	void					Apply_SpringArmToTransform();
 	void					Rebind_Target();
 	const _float4x4*		Find_TargetWorldMatrix() const;

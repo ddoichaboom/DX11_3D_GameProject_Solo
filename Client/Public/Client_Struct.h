@@ -149,11 +149,24 @@ namespace Client
 		_float                  fRange = {};
 	}SCENE_LIGHT;
 
+	typedef struct tagCamColliderFace
+	{
+		_int					iVertexIndices[3] = {
+			INVALID_INDEX,
+			INVALID_INDEX,
+			INVALID_INDEX
+		};
+
+		_float3					vNormal = {};
+	}CAMCOLLIDER_FACE;
+
 	typedef struct tagSceneData
 	{
 		_tchar					szNavDataPath[MAX_PATH] = { };
 		vector<SPAWN_POINT>		SpawnPoints;
 		vector<SCENE_LIGHT>     SceneLights;
+		vector<_float3>			CamColliderVertices;
+		vector<CAMCOLLIDER_FACE> CamColliderFaces;
 	}SCENE_DATA;
 
 	typedef struct tagUIElemet

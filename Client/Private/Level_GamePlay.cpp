@@ -10,8 +10,10 @@
 #include "SceneSerializer.h"
 #include "UISceneLoader.h"
 #include "UI_Image.h"
+#include "UI_Video.h"
 #include "FadeOverlay_Helper.h"
 #include "Monster.h"
+#include "Boss_Monster.h"
 #include "HUD_GamePlay.h" 
 #include "AtlasInstanceEffect.h"
 
@@ -20,6 +22,10 @@ static constexpr _int PLAYER_START_CELL_INDEX = { 40 };
 static const _tchar* SCENEDATA_PATH = TEXT("../../Resources/Scenes/Map/ThroneRoom.scene");
 static const _tchar* DEFAULT_NAVDATA_PATH = TEXT("../../Resources/NavMesh/ThroneRoom.navdata");
 static const _tchar* HUD_SCENE_PATH = TEXT("../../Resources/Scenes/UI/HUD.uiscene");
+static const _tchar* THRONEROOM_CUTSCENE_VIDEO_PATH = TEXT("../../Resources/Video/ThroneRoom_CutScene.mp4");
+static const _tchar* THRONEROOM_CUTSCENE_BGM_KEY = TEXT("Bgm/Bgm_Igris_CutScene.wav");
+static const _tchar* THRONEROOM_CUTSCENE_LAYER = TEXT("Layer_CutSceneUI");
+static const _tchar* THRONEROOM_CUTSCENE_OBJECT = TEXT("CutScene_ThroneRoom_Video");
 
 // 임시로 작성
 static void Build_DefaultThroneRoomLights(vector<SCENE_LIGHT>& SceneLights, const SCENE_DATA& SceneData, _bool bSceneDataLoaded)
@@ -121,7 +127,7 @@ _bool CLevel_GamePlay::Apply_PlayerSpawnPoint(CPlayer::PLAYER_DESC& Desc, CNavMe
 	return true;
 }
 
-CNavMesh* CLevel_GamePlay::Find_GamePlayNavMesh()
+CNavMesh* CLevel_GamePlay::Find_GamePlayNavMesh() const
 {
 	if (nullptr == m_pGameInstance)
 		return nullptr;
@@ -217,7 +223,194 @@ CPlayer* CLevel_GamePlay::Find_FirstPlayer() const
 	return nullptr;
 }
 
-#ifdef _DEBUG
+HRESULT CLevel_GamePlay::Ready_PlayerTrigger()
+{
+	m_bPlayerCutsceneTriggerExecuted = false;
+	m_bPlayerCutscenePlaying = false;
+	m_bPlayerCutsceneFadeOutStarted = false;
+	m_fPlayerCutsceneElapsed = 0.f;
+
+	return S_OK;
+}
+
+_int CLevel_GamePlay::Get_PlayerNavCellIndex() const
+{
+	CPlayer* pPlayer = Find_FirstPlayer();
+	if (nullptr == pPlayer || nullptr == pPlayer->Get_Transform())
+		return INVALID_INDEX;
+
+	CNavMesh* pNavMesh = Find_GamePlayNavMesh();
+	if (nullptr == pNavMesh)
+		return INVALID_INDEX;
+
+	_float3 vPlayerPosition{};
+	XMStoreFloat3(&vPlayerPosition, pPlayer->Get_Transform()->Get_State(STATE::POSITION));
+
+	return pNavMesh->Find_Cell(vPlayerPosition);
+}
+
+void CLevel_GamePlay::Update_PlayerTrigger(_float fTimeDelta)
+{
+	if (true == m_bPlayerCutscenePlaying)
+	{
+		m_fPlayerCutsceneElapsed += fTimeDelta;
+
+		if (false == m_bPlayerCutsceneFadeOutStarted &&
+			PLAYER_CUTSCENE_PLAY_TIME <= m_fPlayerCutsceneElapsed)
+		{
+			Start_PlayerCutsceneFadeOut();
+		}
+		return;
+	}
+
+	if (true == m_bPlayerCutsceneTriggerExecuted)
+		return;
+
+	const _int iPlayerCellIndex = Get_PlayerNavCellIndex();
+	if (PLAYER_CUTSCENE_TRIGGER_CELL_INDEX != iPlayerCellIndex)
+		return;
+
+	m_bPlayerCutsceneTriggerExecuted = true;
+	Execute_PlayerTrigger(iPlayerCellIndex);
+}
+
+void CLevel_GamePlay::Execute_PlayerTrigger(_int iTriggerCellIndex)
+{
+	if (PLAYER_CUTSCENE_TRIGGER_CELL_INDEX != iTriggerCellIndex)
+		return;
+
+	Begin_PlayerCutsceneTrigger();
+}
+
+void CLevel_GamePlay::Begin_PlayerCutsceneTrigger()
+{
+	m_bPlayerCutscenePlaying = false;
+	m_bPlayerCutsceneFadeOutStarted = false;
+	m_fPlayerCutsceneElapsed = 0.f;
+
+	if (CUI_Image* pFade = CFadeOverlay_Helper::Find())
+		pFade->Set_Alpha(0.f);
+
+	Start_PlayerCutscenePlayback();
+}
+void CLevel_GamePlay::Start_PlayerCutscenePlayback()
+{
+	CUI_Video* pVideo = dynamic_cast<CUI_Video*>(Find_PlayerCutsceneVideo());
+	if (nullptr == pVideo)
+	{
+		if (FAILED(Add_PlayerCutsceneVideo()))
+		{
+			Start_PlayerCutsceneFadeOut();
+			return;
+		}
+		pVideo = dynamic_cast<CUI_Video*>(Find_PlayerCutsceneVideo());
+	}
+
+	if (nullptr == pVideo)
+	{
+		Start_PlayerCutsceneFadeOut();
+		return;
+	}
+
+	pVideo->Reset();
+	pVideo->Play();
+
+	m_pGameInstance->Play_BGM(THRONEROOM_CUTSCENE_BGM_KEY, 1.f, false);
+
+	m_fPlayerCutsceneElapsed = 0.f;
+	m_bPlayerCutscenePlaying = true;
+	m_bPlayerCutsceneFadeOutStarted = false;
+}
+
+void CLevel_GamePlay::Start_PlayerCutsceneFadeOut()
+{
+	m_bPlayerCutsceneFadeOutStarted = true;
+	Move_PlayerToNavCell(PLAYER_CUTSCENE_DEST_CELL_INDEX);
+
+	if (CUI_Image* pFade = CFadeOverlay_Helper::Find())
+	{
+		pFade->Start_Fade(1.f, PLAYER_CUTSCENE_FADE_TIME, [this]() {
+			Finish_PlayerCutscene();
+			if (CUI_Image* pFadeIn = CFadeOverlay_Helper::Find())
+				pFadeIn->Start_Fade(0.f, PLAYER_CUTSCENE_FADE_TIME);
+			});
+		return;
+	}
+
+	Finish_PlayerCutscene();
+}
+
+void CLevel_GamePlay::Finish_PlayerCutscene()
+{
+	m_bPlayerCutscenePlaying = false;
+	m_bPlayerCutsceneFadeOutStarted = false;
+	m_pGameInstance->Stop_Sound(SOUND_CHANNEL::BGM);
+
+	if (CUI_Video* pVideo = dynamic_cast<CUI_Video*>(Find_PlayerCutsceneVideo()))
+		pVideo->Stop();
+
+	CBoss_Monster* pBossMonster = dynamic_cast<CBoss_Monster*>(Find_FirstBossMonster());
+	if (nullptr != pBossMonster)
+		pBossMonster->Begin_Encounter();
+}
+
+HRESULT CLevel_GamePlay::Add_PlayerCutsceneVideo()
+{
+	CUI_Video::UI_VIDEO_DESC Desc{};
+	Desc.fCenterX = 640.f;
+	Desc.fCenterY = 360.f;
+	Desc.fSizeX = 1280.f;
+	Desc.fSizeY = 720.f;
+	Desc.iZOrder = 9000;
+	Desc.pObjectName = THRONEROOM_CUTSCENE_OBJECT;
+	Desc.pVideoPath = THRONEROOM_CUTSCENE_VIDEO_PATH;
+	Desc.bLoop = false;
+	Desc.fPlaybackSpeed = 1.f;
+	Desc.bVisible = false;
+
+	return m_pGameInstance->Add_GameObject(
+		ETOUI(LEVEL::STATIC), TEXT("Prototype_GameObject_UI_Video"),
+		ETOUI(LEVEL::GAMEPLAY), THRONEROOM_CUTSCENE_LAYER, &Desc);
+}
+
+CGameObject* CLevel_GamePlay::Find_PlayerCutsceneVideo() const
+{
+	const auto* pLayers = m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+	if (nullptr == pLayers)
+		return nullptr;
+
+	auto iterLayer = pLayers->find(THRONEROOM_CUTSCENE_LAYER);
+	if (iterLayer == pLayers->end() || nullptr == iterLayer->second)
+		return nullptr;
+
+	const list<CGameObject*>& CutSceneObjects = iterLayer->second->Get_GameObjects();
+	for (CGameObject* pObject : CutSceneObjects)
+	{
+		CUIObject* pUI = dynamic_cast<CUIObject*>(pObject);
+		if (nullptr != pUI && THRONEROOM_CUTSCENE_OBJECT == pUI->Get_ObjectName())
+			return pObject;
+	}
+
+	return nullptr;
+}
+
+void CLevel_GamePlay::Remove_PlayerCutsceneVideo()
+{
+	CGameObject* pVideo = Find_PlayerCutsceneVideo();
+	if (nullptr != pVideo)
+		m_pGameInstance->Remove_GameObject(ETOUI(LEVEL::GAMEPLAY), THRONEROOM_CUTSCENE_LAYER, pVideo);
+}
+
+_bool CLevel_GamePlay::Move_PlayerToNavCell(_int iCellIndex)
+{
+	CPlayer* pPlayer = Find_FirstPlayer();
+	CNavMesh* pNavMesh = Find_GamePlayNavMesh();
+	if (nullptr == pPlayer || nullptr == pNavMesh)
+		return false;
+
+	return pPlayer->Teleport_ToNavCell(pNavMesh, iCellIndex);
+}
+
 CMonster* CLevel_GamePlay::Find_FirstBossMonster() const
 {
 	if (nullptr == m_pGameInstance)
@@ -245,7 +438,6 @@ CMonster* CLevel_GamePlay::Find_FirstBossMonster() const
 
 	return nullptr;
 }
-#endif
 
 CLevel_GamePlay::CLevel_GamePlay(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	:CLevel{ pDevice, pContext }
@@ -285,6 +477,9 @@ HRESULT CLevel_GamePlay::Initialize()
 	if (FAILED(Ready_CollisionGroup()))
 		return E_FAIL;
 
+	if (FAILED(Ready_PlayerTrigger()))
+		return E_FAIL;
+
 	if (CUI_Image* pFade = CFadeOverlay_Helper::Find())
 	{
 		pFade->Set_Alpha(1.f);
@@ -298,6 +493,8 @@ HRESULT CLevel_GamePlay::Initialize()
 
 void CLevel_GamePlay::Update(_float fTimeDelta)
 {
+	Update_PlayerTrigger(fTimeDelta);
+
 #ifdef _DEBUG
 	CMonster* pBossMonster = Find_FirstBossMonster();
 
@@ -427,6 +624,8 @@ HRESULT CLevel_GamePlay::Ready_Layer_Camera(const _wstring& strLayerTag)
 	CameraDesc.fPitchMax = 1.0f;
 	CameraDesc.fMouseSensor = 0.003f;
 	CameraDesc.fArmLerpSpeed = 8.f;
+	CameraDesc.pCamColliderVertices = &m_SceneData.CamColliderVertices;
+	CameraDesc.pCamColliderFaces = &m_SceneData.CamColliderFaces;
 
 	if (FAILED(m_pGameInstance->Add_GameObject(
 		ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_Camera_Follow"),
@@ -568,6 +767,7 @@ HRESULT CLevel_GamePlay::Ready_Layer_Effect(const _wstring& strLayerTag)
 	Desc.vUVPadding = _float2(0.002f, 0.002f);
 	Desc.vColor = _float4(1.35f, 0.85f, 0.45f, 1.f);
 	Desc.fAlpha = 0.95f;
+	Desc.iShaderPass = 1;
 	Desc.bLoop = true;
 
 	if (FAILED(m_pGameInstance->Add_GameObject(

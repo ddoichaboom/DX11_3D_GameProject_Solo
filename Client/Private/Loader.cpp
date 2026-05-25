@@ -22,7 +22,11 @@
 #include "Texture.h"
 #include "VIBuffer_Rect_Instance.h"
 #include "AtlasInstanceEffect.h"
+#include "UI_Video.h"
 
+static const _tchar* THRONEROOM_CUTSCENE_VIDEO_PATH = TEXT("../../Resources/Video/ThroneRoom_CutScene.mp4");
+static const _tchar* THRONEROOM_CUTSCENE_LAYER = TEXT("Layer_CutSceneUI");
+static const _tchar* THRONEROOM_CUTSCENE_OBJECT = TEXT("CutScene_ThroneRoom_Video");
 CLoader::CLoader(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	: m_pDevice{ pDevice }
 	, m_pContext{ pContext }
@@ -99,11 +103,6 @@ HRESULT CLoader::Ready_Resources_For_Logo()
 	lstrcpy(m_szLoadingText, TEXT("텍스쳐 로딩 중"));
 
 	m_fProgress = 0.f;
-
-	// Prototype_Component_Texture_BackGround
-	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel), TEXT("Prototype_Component_Texture_BackGround"),
-		CTexture::Create(m_pDevice, m_pContext, TEXT("../../Resources/Textures/Default%d.jpg"), 2))))
-		return E_FAIL;
 
 	// Prototype_Component_Texture_Title_Logo
 	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel),
@@ -252,16 +251,43 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 		{ TEXT("Prototype_Component_Texture_HUD_Dash_Step2_Glow"), TEXT("../../Resources/Textures/HUD/Dash_Step2_Glow.png") },
 		{ TEXT("Prototype_Component_Texture_HUD_Dash_Step3"),      TEXT("../../Resources/Textures/HUD/Dash_Step3.png") },
 		{ TEXT("Prototype_Component_Texture_HUD_Dash_Step3_Glow"), TEXT("../../Resources/Textures/HUD/Dash_Step3_Glow.png") },
+
+		// R8-A Skill slot textures (12)
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Base"), TEXT("../../Resources/Textures/HUD/Control_Skill_Default_Base.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Active"),     TEXT("../../Resources/Textures/HUD/Control_Skill_Default_Active.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_QTE_Active"),        TEXT("../../Resources/Textures/HUD/Frame_Hud_Skill_QTE_Active.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_QTE_Icon"),         TEXT("../../Resources/Textures/HUD/Skill_ExtremeDash.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Quest_Alarm"),     TEXT("../../Resources/Textures/HUD/Icon_BattleMission_Hud_Alarm.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Quest_Underline"), TEXT("../../Resources/Textures/HUD/back_light_line.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Cool"), TEXT("../../Resources/Textures/HUD/Control_Skill_Default_Cool.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_UT_Base"), TEXT("../../Resources/Textures/HUD/Control_Skill_UT_Base.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Ultimate"), TEXT("../../Resources/Textures/HUD/Control_Skill_Ultimate_Active.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKasaka"), TEXT("../../Resources/Textures/HUD/Icon_Weapon_KasakaVenomFang.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKK"), TEXT("../../Resources/Textures/HUD/Icon_Weapon_KnightKiller.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_Kasaka"), TEXT("../../Resources/Textures/HUD/GS_Skill01_SSR_KasakaVenomFang.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_KK"), TEXT("../../Resources/Textures/HUD/GS_Skill01_KnightKiller.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_Q"), TEXT("../../Resources/Textures/HUD/Skill_03_02.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_Kasaka"), TEXT("../../Resources/Textures/HUD/Skill_08.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_KK"), TEXT("../../Resources/Textures/HUD/Skill_06.png") },
+		{ TEXT("Prototype_Component_Texture_HUD_Skill_Icon_R"), TEXT("../../Resources/Textures/HUD/Skill_U_CRank.png") },
 	};
 
-	for (const HUDTextureEntry& Entry : aHUDEntries)
-	{
-		if (FAILED(m_pGameInstance->Add_Prototype(
-			ETOUI(eLevel),
-			Entry.pProtoTag,
-			CTexture::Create(m_pDevice, m_pContext, Entry.pFilePath, 1))))
-			return E_FAIL;
-	}
+	for (const HUDTextureEntry& Entry : aHUDEntries)
+
+	{
+
+		if (FAILED(m_pGameInstance->Add_Prototype(
+
+			ETOUI(eLevel),
+
+			Entry.pProtoTag,
+
+			CTexture::Create(m_pDevice, m_pContext, Entry.pFilePath, 1))))
+
+			return E_FAIL;
+
+	}
+
 	// Prototype_Component_Texture_Effect_Fire_Atlas
 	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel),
 		TEXT("Prototype_Component_Texture_Effect_Fire_Atlas"),
@@ -400,6 +426,24 @@ HRESULT CLoader::Ready_Resources_For_GamePlay()
 	if (FAILED(m_pGameInstance->Add_Prototype(ETOUI(eLevel), TEXT("Prototype_GameObject_Boss_Monster"),
 		CBoss_Monster::Create(m_pDevice, m_pContext))))
 		return E_FAIL;
+
+	lstrcpy(m_szLoadingText, TEXT("컷신 비디오 로드 중"));
+
+	CUI_Video::UI_VIDEO_DESC CutSceneVideoDesc{};
+	CutSceneVideoDesc.fCenterX = 640.f;
+	CutSceneVideoDesc.fCenterY = 360.f;
+	CutSceneVideoDesc.fSizeX = 1280.f;
+	CutSceneVideoDesc.fSizeY = 720.f;
+	CutSceneVideoDesc.iZOrder = 9000;
+	CutSceneVideoDesc.pObjectName = THRONEROOM_CUTSCENE_OBJECT;
+	CutSceneVideoDesc.pVideoPath = THRONEROOM_CUTSCENE_VIDEO_PATH;
+	CutSceneVideoDesc.bLoop = false;
+	CutSceneVideoDesc.fPlaybackSpeed = 1.f;
+	CutSceneVideoDesc.bVisible = false;
+
+	(void)m_pGameInstance->Add_GameObject(
+		ETOUI(LEVEL::STATIC), TEXT("Prototype_GameObject_UI_Video"),
+		ETOUI(eLevel), THRONEROOM_CUTSCENE_LAYER, &CutSceneVideoDesc);
 
 	m_fProgress = 1.f;
 

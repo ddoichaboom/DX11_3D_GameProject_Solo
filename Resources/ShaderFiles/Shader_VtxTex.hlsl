@@ -6,8 +6,10 @@ texture2D g_Texture;
 float4 g_vUVOffsetScale = float4(0.f, 0.f, 1.f, 1.f);
 float g_fAlpha = 1.f;
 float g_fGaugeProgress = 1.f;
+float g_fGaugeVertical = 0.f;   // 0=horizontal / 1=vertical(bottom->top)
 float4 g_vSweepTint = float4(1.f, 1.f, 1.f, 1.f);
 float4 g_vUVOffset = float4(0.f, 0.f, 0.f, 0.f);
+float4 g_vColor = float4(1.f, 1.f, 1.f, 1.f);
 
 // 셰이더의 입력 구조체는 C++ 측 정점 구조체 VTXTEX와 1:1 대응 해야 함.
 struct VS_IN
@@ -159,6 +161,37 @@ PS_OUT PS_SWEEP_GLOW(PS_IN In)
     return Out;
 }
 
+PS_OUT PS_BOX(PS_IN In)
+{
+    PS_OUT Out;
+    float2 uv = In.vTexcoord;
+    float bw = 0.12f;
+    bool edge = (uv.x < bw || uv.x > 1.f - bw || uv.y < bw || uv.y > 1.f - bw);
+    Out.vColor = edge ? float4(1.f, 1.f, 1.f, 0.5f) : float4(g_vColor.rgb, g_vColor.a);
+    Out.vColor.a *= g_fAlpha;
+    return Out;
+}
+
+PS_OUT PS_FILL(PS_IN In)
+{
+    PS_OUT Out;
+    Out.vColor = g_vColor;
+    Out.vColor.a *= g_fAlpha;
+    return Out;
+}
+
+PS_OUT PS_GAUGE_V(PS_IN In)
+{
+    PS_OUT Out;
+    Out.vColor = g_Texture.Sample(LinearSampler, In.vTexcoord);
+    if (In.vTexcoord.y < 1.f - g_fGaugeProgress)
+        discard;
+    if (Out.vColor.a < 0.05f)
+        discard;
+    Out.vColor.a *= g_fAlpha;
+    return Out;
+}
+
 technique11 DefaultTechnique
 {
     pass DefaultPass
@@ -209,6 +242,36 @@ technique11 DefaultTechnique
 
         VertexShader = compile vs_5_0 VS_MAIN();
         PixelShader = compile ps_5_0 PS_SWEEP_GLOW();
+    }
+
+    pass BoxPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_BOX();
+    }
+
+    pass FillPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_FILL();
+    }
+
+    pass GaugeVPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_GAUGE_V();
     }
 }
 

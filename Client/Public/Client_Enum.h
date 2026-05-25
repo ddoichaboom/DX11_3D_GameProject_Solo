@@ -256,6 +256,9 @@ namespace Client
 		NONE = 0,
 		POSITION,		// Mesh 자체 X 좌표 좌 -> 우 이동
 		UV,				// Mesh 정지, UV Y 스크롤
+		BOX,			// 절차 박스 (테두리 + 반투명 채움)
+		FILL,			// 단색 채움 (border 라인 등)
+		GAUGE_V,		// 세로(하단→상단) 게이지 — Cool 쿨다운
 		END
 	};
 
@@ -278,6 +281,24 @@ namespace Client
 		PLAYER_MP_BACK, PLAYER_MP_REDUCE, PLAYER_MP_FILL, PLAYER_MP_BARLIGHT,
 		DASH_BASE, DASH_LINE,
 		DASH_STEP1, DASH_STEP1_GLOW, DASH_STEP2, DASH_STEP2_GLOW, DASH_STEP3, DASH_STEP3_GLOW,
+
+		// R8-A 스킬 5슬롯 (C/F/Q/E/R) — 슬롯마다 Base/Icon/Cool
+		SKILL_C_BASE, SKILL_C_ICON, SKILL_C_COOL,
+		SKILL_F_BASE, SKILL_F_ICON, SKILL_F_COOL,
+		SKILL_Q_BASE, SKILL_Q_ICON, SKILL_Q_COOL,
+		SKILL_E_BASE, SKILL_E_ICON, SKILL_E_COOL,
+		SKILL_R_BASE, SKILL_R_ICON, SKILL_R_COOL,
+
+		// 키 라벨 배경 박스 (BOX 모드) + QTE 슬롯
+		SKILL_C_KEYBOX, SKILL_F_KEYBOX, SKILL_Q_KEYBOX, SKILL_E_KEYBOX, SKILL_R_KEYBOX,
+		QTE_FRAME, QTE_ICON, QTE_KEYBOX, QTE_COOL, QTE_ACTIVE,
+
+		// 스킬 사용가능(쿨다운 아님) Active 글로우
+		SKILL_C_ACTIVE, SKILL_F_ACTIVE, SKILL_Q_ACTIVE, SKILL_E_ACTIVE, SKILL_R_ACTIVE,
+
+		// R8-B 퀘스트 목표 (우측 상단)
+		QUEST_ALARM, QUEST_UNDERLINE,
+
 		END
 	};
 

@@ -211,6 +211,9 @@
     <Filter Include="15. Sounds\Manager">
       <UniqueIdentifier>{7a2e1f74-a424-4f24-bb70-39372cb4d18b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="16. Shadow">
+      <UniqueIdentifier>{72e387d3-5eaa-4b4b-9991-a381ccde4377}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Private\Base.cpp">
@@ -392,6 +395,9 @@
     </ClCompile>
     <ClCompile Include="..\Private\Sound_Manager.cpp">
       <Filter>15. Sounds\Manager</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Shadow.cpp">
+      <Filter>16. Shadow</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -598,6 +604,9 @@
     </ClInclude>
     <ClInclude Include="..\Public\Sound_Manager.h">
       <Filter>15. Sounds\Manager</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Shadow.h">
+      <Filter>16. Shadow</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

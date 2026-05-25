@@ -91,6 +91,7 @@ void CPanel_Viewport::Render()
 		const _bool bLightEditMode = m_pPanel_Manager->Is_LightEditMode();
 		CUICanvasTool* pUICanvasTool = Find_UICanvasTool();
 		const _bool bUICanvasMode = m_pPanel_Manager->Is_UICanvasMode();
+		const _bool bCamColliderMode = m_pPanel_Manager->Is_CamColliderMode();
 
 		// ImGuizmo 오버레이 세팅
 		// (1) 기즈모 드로잉을 현재 Viewport 윈도우 drawlist에 연결
@@ -117,7 +118,7 @@ void CPanel_Viewport::Render()
 
 		// 기즈모 단축키 처리
 		// Viewport 포커스 상태 + RMB(카메라 모드) 비활성 시에만 반응
-		if (bWindowFocused && !bNavMeshEditMode && !bLightEditMode && !bUICanvasMode  && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+		if (bWindowFocused && !bNavMeshEditMode && !bLightEditMode && !bUICanvasMode && !bCamColliderMode && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
 		{
 			if (ImGui::IsKeyPressed(ImGuiKey_W))
 				m_eGizmoOperation = ImGuizmo::TRANSLATE;
@@ -136,7 +137,7 @@ void CPanel_Viewport::Render()
 
 		_bool bGizmoBlocking = { false };
 
-		if (false == bNavMeshEditMode && false == bUICanvasMode)
+		if (false == bNavMeshEditMode && false == bUICanvasMode && false == bCamColliderMode)
 		{
 			// 선택 오브젝트에 대한 기즈모 조작
 			CGameObject* pSelected = m_pPanel_Manager->Get_SelectedObject();
@@ -207,6 +208,11 @@ void CPanel_Viewport::Render()
 				if (nullptr != pNavMeshEditorTool)
 					pNavMeshEditorTool->Handle_ViewportClick(m_fPickX, m_fPickY, m_iRTWidth, m_iRTHeight);
 			}
+			else if (bCamColliderMode)
+			{
+				if (nullptr != pNavMeshEditorTool)
+					pNavMeshEditorTool->Handle_CamColliderViewportClick(m_fPickX, m_fPickY, m_iRTWidth, m_iRTHeight);
+			}
 			else if (bLightEditMode)
 			{
 				if (nullptr != pNavMeshEditorTool)
@@ -218,9 +224,12 @@ void CPanel_Viewport::Render()
 			}
 		}
 
-		if ((bNavMeshEditMode || bLightEditMode) && nullptr != pNavMeshEditorTool)
+		if ((bNavMeshEditMode || bLightEditMode || bCamColliderMode) && nullptr != pNavMeshEditorTool)
 		{
-			pNavMeshEditorTool->Render_Overlay(vImagePos, m_iRTWidth, m_iRTHeight);
+			if (bCamColliderMode)
+				pNavMeshEditorTool->Render_CamColliderOverlay(vImagePos, m_iRTWidth, m_iRTHeight);
+			else
+				pNavMeshEditorTool->Render_Overlay(vImagePos, m_iRTWidth, m_iRTHeight);
 		}
 		else if (bUICanvasMode && nullptr != pUICanvasTool)
 		{

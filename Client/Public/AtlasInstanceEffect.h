@@ -26,6 +26,7 @@ public:
 		_float2					vUVPadding = { 0.f, 0.f };
 		_float4					vColor = { 1.f, 1.f, 1.f, 1.f };
 		_float					fAlpha = { 1.f };
+		_uint					iShaderPass = {};
 		_bool					bLoop = { true };
 	}ATLAS_INSTANCE_EFFECT_DESC;
 
@@ -64,6 +65,7 @@ private:
 	_float2							m_vUVPadding = { 0.f, 0.f };
 	_float4							m_vColor = { 1.f, 1.f, 1.f, 1.f };
 	_float							m_fAlpha = { 1.f };
+	_uint							m_iShaderPass = {};
 	_bool							m_bLoop = { true };
 	_bool							m_bFinished = {};
 

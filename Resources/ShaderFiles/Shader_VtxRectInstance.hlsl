@@ -70,6 +70,22 @@ PS_OUT PS_ATLAS_INSTANCE(PS_IN In)
     return Out;
 }
 
+PS_OUT PS_ATLAS_INSTANCE_ADDITIVE(PS_IN In)
+{
+    PS_OUT Out;
+
+    float4 vTexColor = g_Texture.Sample(LinearSampler, In.vTexcoord);
+    float fMaxRGB = max(max(vTexColor.r, vTexColor.g), vTexColor.b);
+
+    if (fMaxRGB <= 0.12f)
+        discard;
+
+    float fIntensity = In.vColor.a * g_fAlpha;
+    Out.vColor = float4(vTexColor.rgb * In.vColor.rgb * fIntensity, 0.f);
+
+    return Out;
+}
+
 technique11 DefaultTechnique
 {
     pass Atlas_Instance
@@ -81,5 +97,16 @@ technique11 DefaultTechnique
         VertexShader = compile vs_5_0 VS_ATLAS_INSTANCE();
         GeometryShader = NULL;
         PixelShader = compile ps_5_0 PS_ATLAS_INSTANCE();
+    }
+
+    pass Atlas_Instance_Additive
+    {
+        SetRasterizerState(RS_Cull_None);
+        SetDepthStencilState(DSS_Default, 0);
+        SetBlendState(BS_Blend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_ATLAS_INSTANCE();
+        GeometryShader = NULL;
+        PixelShader = compile ps_5_0 PS_ATLAS_INSTANCE_ADDITIVE();
     }
 }

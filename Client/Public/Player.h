@@ -46,6 +46,7 @@ public:
     _bool                   Try_GetDashHUDWorldPosition(_float3* pOutPosition) const;
 
     _bool                   Try_Teleport(_float fSearchRadius, _float fConeAngleDegrees);
+    _bool                   Teleport_ToNavCell(CNavMesh* pNavMesh, _int iCellIndex);
 
 public:
     virtual HRESULT         Initialize_Prototype() override;
@@ -111,6 +112,8 @@ public:
     _bool                   Is_QTEWindowActive() const { return false == m_QTEWindows.empty(); }
     QTE_TYPE                Get_LatestQTEType() const { return m_QTEWindows.back().eType; } 
     _bool                   Is_QTEOnCooldown(QTE_TYPE eType) const { return m_fQTECooldown[static_cast<int>(eType)] > 0.f; }
+    _float                  Get_QTECooldownTimer(QTE_TYPE eType) const { return m_fQTECooldown[static_cast<int>(eType)]; }
+    _float                  Get_QTECooldownMax(QTE_TYPE eType)   const { return QTE_COOLDOWN[static_cast<int>(eType)]; }
     void                    Consume_LatestQTEWindow();
 
 private:

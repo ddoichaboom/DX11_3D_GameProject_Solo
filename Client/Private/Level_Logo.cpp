@@ -160,10 +160,17 @@ void CLevel_Logo::Enter_Title()
         m_pBtnQuit->Set_Visible(false);
     if (m_pMenuPanelBg)  
         m_pMenuPanelBg->Set_Visible(false);
+
+    m_pGameInstance->Play_BGM(TEXT("Bgm/Bgm_Title.wav"), 0.8f, true);
 }
 
 void CLevel_Logo::Enter_Menu()
 {
+    m_pGameInstance->Play_Sound(TEXT("UI/Button_Title.wav"),
+                                 SOUND_CHANNEL::UI,
+                                 1.0f,
+                                 false);
+
     m_eState = LOGO_STATE::MENU;
     m_eHovered = MENU_ITEM::END;
 
@@ -281,9 +288,13 @@ void CLevel_Logo::Set_Hovered(MENU_ITEM eNew)
 
     if (CUI_Text* pNew = Get_MenuButton(m_eHovered))
     {
-        _float4 vHoverColor = Get_MenuButtonBaseColor(m_eHovered);
+        m_pGameInstance->Play_Sound(TEXT("UI/Button_Hovered.wav"), 
+                                    SOUND_CHANNEL::UI,
+                                    0.5f, 
+                                    false);
 
- 
+        _float4 vHoverColor = Get_MenuButtonBaseColor(m_eHovered);
+         
         vHoverColor.w = 1.f;
 
         pNew->Set_Color(vHoverColor);
@@ -294,10 +305,17 @@ void CLevel_Logo::Set_Hovered(MENU_ITEM eNew)
 
 void CLevel_Logo::Dispatch_Action(MENU_ITEM eItem)
 {
+    m_pGameInstance->Play_Sound(TEXT("UI/Button_Enter.wav"),
+        SOUND_CHANNEL::UI,
+        0.6f,
+        false);
+
     switch (eItem)
     {
     case MENU_ITEM::START:
     {
+        m_pGameInstance->Stop_Sound(SOUND_CHANNEL::BGM);
+
         if (CUI_Image* pFade = CFadeOverlay_Helper::Find())
         {
             pFade->Start_Fade(1.f, 0.5f, [this]() {

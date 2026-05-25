@@ -53,6 +53,7 @@ public:
 
 	_bool							Get_LocalAABB(_float3& vOutCenter, _float3& vOutHalfExtent) const;
 	_bool							Get_MeshLocalAABB(_uint iMeshIndex, _float3& vOutCenter, _float3& vOutHalfExtent) const;
+	class CMesh*					Get_Mesh(_uint iMeshIndex) const;
 
 
 #pragma endregion

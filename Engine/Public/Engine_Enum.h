@@ -9,7 +9,7 @@ namespace Engine
 
 	enum class TRANSFORMTYPE { TRANSFORM_2D, TRANSFORM_3D, END };
 
-	enum class RENDERID { PRIORITY, NONBLEND, NONLIGHT, BLEND, UI, END };
+	enum class RENDERID { PRIORITY, SHADOW, NONBLEND, NONLIGHT, BLEND, UI, END };
 
     enum class DEFERRED
     {
@@ -23,6 +23,7 @@ namespace Engine
         COMBINED_SHADE,
         COMBINED_SPECULAR,
         FORCE_ALPHA,
+        COMBINED_LIGHT_DEPTH,
         END
     };
 

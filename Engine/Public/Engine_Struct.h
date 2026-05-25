@@ -21,6 +21,16 @@ namespace Engine
 		float		fRange;									// 점광원용 : 광원의 유효 범위
 	}LIGHT_DESC;
 
+	typedef struct tagShadowLightDesc
+	{
+		XMFLOAT4	vEye;
+		XMFLOAT4	vAt;
+		float		fFovy;
+		float		fAspect;
+		float		fNear;
+		float		fFar;
+	}SHADOW_LIGHT_DESC;
+
 	typedef struct tagVertexPosition
 	{
 		XMFLOAT3 vPosition;

@@ -131,6 +131,8 @@ public:
 	void						Transform_Frustum_ToLocalSpace(_fmatrix WorldMatrix);
 	_bool                       Is_In_Frustum_WorldSpace(_fvector vWorldPos, _float fRange = 0.f) const;
 	_bool                       Is_In_Frustum_LocalSpace(_fvector vLocalPos, _float fRange = 0.f) const;
+	const _float4x4*			Get_Shadow_Transform(D3DTS eState) const;
+	HRESULT						Add_ShadowLight(const SHADOW_LIGHT_DESC& ShadowDesc);
 #pragma endregion
 
 #pragma region INPUT_DEVICE
@@ -194,6 +196,8 @@ private:
 	class CFrustum*				m_pFrustum = { nullptr };
 	class CTarget_Manager*		m_pTarget_Manager = { nullptr };
 	class CSound_Manager*		m_pSound_Manager = { nullptr };
+	class CShadow*				m_pShadow = { nullptr };
+
 private:
 	_bool						m_bLogicFrozen = { false };
 #ifdef _DEBUG

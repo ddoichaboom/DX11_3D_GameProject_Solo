@@ -48,6 +48,8 @@ private:
 	void                            Tick_MonsterBars(_float fTimeDelta);
 	void                            Tick_PlayerBars(_float fTimeDelta);
 	void                            Tick_Dash(_float fTimeDelta);
+	void                            Tick_Skills(_float fTimeDelta);
+	void                            Refresh_SkillIcons(EQUIPPED_WEAPON_ID eWeapon);
 
 	void                            Set_MonsterBars_Visible(_bool bVisible);
 	void							Set_PlayerBars_Visible(_bool bVisible);
@@ -60,6 +62,12 @@ private:
 	_float							m_fSinceLastHit = { 0.f };
 
 	CPlayer*						m_pPlayer = { nullptr };
+	EQUIPPED_WEAPON_ID              m_eCachedWeaponId = { EQUIPPED_WEAPON_ID::NONE };
+	CUI_Text*                       m_pSkillKeyText[6] = {};
+	_float                          m_fSkillActiveFlash[5] = {};
+	_float                          m_fPrevSkillCooldown[5] = {};
+	CUI_Text*                       m_pQuestText[3] = {};
+	static constexpr _float         SKILL_ACTIVE_FLASH = { 0.6f };
 	CUI_Image*						m_pUI[ETOUI(HUD_SLOT::END)] = {};
 	CUI_Text*						m_pUI_MonsterLevel = { nullptr };
 	CUI_Text*						m_pUI_MonsterName = { nullptr };

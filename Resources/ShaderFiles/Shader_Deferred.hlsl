@@ -9,6 +9,7 @@ texture2D g_DiffuseTexture;
 texture2D g_ShadeTexture;
 texture2D g_DepthTexture;
 texture2D g_SpecularTexture;
+texture2D g_LightDepthTexture;
 
 vector g_vCamPosition;
 
@@ -220,6 +221,17 @@ PS_OUT_BACKBUFFER PS_MAIN_COMBINED_SPECULAR(PS_IN In)
     return Out;
 }
 
+PS_OUT_BACKBUFFER PS_MAIN_COMBINED_LIGHT_DEPTH(PS_IN In)
+{
+    PS_OUT_BACKBUFFER Out;
+
+    vector vLightDepth = g_LightDepthTexture.Sample(LinearSampler, In.vTexcoord);
+
+    Out.vBackBuffer = float4(vLightDepth.xxx, 1.f);
+
+    return Out;
+}
+
 PS_OUT_BACKBUFFER PS_MAIN_FORCE_ALPHA(PS_IN In)
 {
     PS_OUT_BACKBUFFER Out;
@@ -329,5 +341,15 @@ technique11 DefaultTechnique
 
         VertexShader = compile vs_5_0 VS_MAIN();
         PixelShader = compile ps_5_0 PS_MAIN_FORCE_ALPHA();
+    }
+
+    pass Combined_LightDepth
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Z_Disable, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_COMBINED_LIGHT_DEPTH();
     }
 }

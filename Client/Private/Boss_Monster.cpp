@@ -103,22 +103,6 @@ void CBoss_Monster::Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_
 
 void CBoss_Monster::Update(_float fTimeDelta)
 {
-    if (false == m_bEncounterStarted)
-    {
-        CGameObject* pTriggerTarget = Resolve_Target();
-        if (nullptr != pTriggerTarget &&
-            nullptr != pTriggerTarget->Get_Transform() &&
-            nullptr != m_pNavigationAgent &&
-            true == m_pNavigationAgent->Has_NavMesh())
-        {
-            _float3 vTargetPosition{};
-            XMStoreFloat3(&vTargetPosition, pTriggerTarget->Get_Transform()->Get_State(STATE::POSITION));
-
-            if (97 == m_pNavigationAgent->Get_NavMesh()->Find_Cell(vTargetPosition))
-                Begin_Encounter();
-        }
-    }
-
     Tick_PatternCooldowns(fTimeDelta);
 
     const _bool bCrashBefore =
