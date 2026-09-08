@@ -11,6 +11,8 @@
 #include "Layer.h"
 #include "Player.h"
 #include "HUD_GamePlay.h"
+#include "DamageFont.h"
+#include "WeaponTrailEffect.h"
 
 CMonster::CMonster(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
     : CContainerObject{ pDevice, pContext }
@@ -52,6 +54,15 @@ void CMonster::Take_Damage(_float fAmount)
     if (m_fCurrentHP <= 0.f)
         return;
 
+    auto frand01 = []() { return static_cast<_float>(rand()) / static_cast<_float>(RAND_MAX); };
+    const _bool bCrit = (frand01() < 0.25f);
+    fAmount *= (0.8f + frand01() * 0.4f);
+    if (bCrit)
+        fAmount *= 2.f;
+
+    if (CHUD_GamePlay* pHUD = CHUD_GamePlay::Get_Instance())
+        pHUD->Notify_ComboHit();
+
     _float fHPDamage = 0.f;
     _float fBreakDamage = 0.f;
 
@@ -72,6 +83,14 @@ void CMonster::Take_Damage(_float fAmount)
     _float fPrevBreak = m_fCurrentBreak;
     m_fCurrentBreak = max(0.f, m_fCurrentBreak - fBreakDamage);
     m_fCurrentHP = max(0.f, m_fCurrentHP - fHPDamage);
+
+    if (CDamageFont* pDF = CDamageFont::Get_Instance())
+    {
+        _float3 vCenter;
+        XMStoreFloat3(&vCenter, m_pTransformCom->Get_State(STATE::POSITION));
+        vCenter.y += 1.2f;
+        pDF->Spawn(vCenter, static_cast<_int>(fHPDamage + 0.5f), bCrit);
+    }
 
     char szLog[192] = {};
     sprintf_s(szLog,
@@ -116,8 +135,19 @@ void CMonster::Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_ACTIO
         Set_WeaponHitboxActive(false);
     }
 
+    if (false == bInitial &&
+        MONSTER_ACTION::CRASH != eFromAction &&
+        MONSTER_ACTION::CRASH == eToAction)
+    {
+        if (CHUD_GamePlay* pHUD = CHUD_GamePlay::Get_Instance())
+            pHUD->Notify_Crash();
+    }
+
     if (MONSTER_ACTION::DEATH != eFromAction && MONSTER_ACTION::DEATH == eToAction)
     {
+        if (nullptr != m_pBody)
+            m_pBody->Start_Dissolve(1.4f, _float4(1.35f, 0.03f, 0.02f, 1.f));
+
         if (CHUD_GamePlay* pHUD = CHUD_GamePlay::Get_Instance())
             pHUD->Notify_Death(this);
     }
@@ -156,6 +186,11 @@ void CMonster::Set_WeaponHitboxActive(_bool bActive)
         m_AttackHitTargets.clear();
 }
 
+void CMonster::Set_WeaponTrailActive(_bool bActive)
+{
+    if (nullptr != m_pWeaponTrail)
+        m_pWeaponTrail->Set_Active(bActive);
+}
 void CMonster::On_AttackHitboxNotify(_bool bActive)
 {
     Set_WeaponHitboxActive(bActive);
@@ -231,6 +266,9 @@ HRESULT CMonster::Initialize(void* pArg)
     if (FAILED(Ready_PartObjects(Desc)))
         return E_FAIL;
 
+    if (FAILED(Ready_WeaponTrailEffect()))
+        return E_FAIL;
+
     if (FAILED(Ready_StateMachine()))
         return E_FAIL;
 
@@ -283,6 +321,12 @@ void CMonster::Late_Update(_float fTimeDelta)
     {
         if (nullptr != Pair.second)
             Pair.second->Late_Update(fTimeDelta);
+    }
+
+    if (nullptr != m_pWeaponTrail)
+    {
+        m_pWeaponTrail->Update(fTimeDelta);
+        m_pWeaponTrail->Late_Update(fTimeDelta);
     }
 
     if (nullptr != m_pCollider && nullptr != m_pTransformCom)
@@ -415,6 +459,44 @@ HRESULT CMonster::Ready_PartObjects(const MONSTER_DESC& Desc)
     return S_OK;
 }
 
+HRESULT CMonster::Ready_WeaponTrailEffect()
+{
+    if (nullptr == m_pBody || nullptr == m_pWeapon)
+        return S_OK;
+
+    const _float4x4* pParentMatrix = &m_pBody->Get_CombinedWorldMatrix();
+    const _float4x4* pStart = m_pBody->Get_BoneMatrixPtr("Bip001 Prop1");
+    const _float4x4* pEnd = m_pBody->Get_BoneMatrixPtr("FX_Point_R_Weapon");
+
+    if (nullptr == pStart || nullptr == pEnd)
+    {
+        pStart = m_pBody->Get_BoneMatrixPtr("FX_Point_Weapon");
+        pEnd = m_pBody->Get_BoneMatrixPtr("FX_Point_R_Weapon");
+    }
+
+    if (nullptr == pParentMatrix || nullptr == pStart || nullptr == pEnd)
+        return S_OK;
+
+    CWeaponTrailEffect::WEAPON_TRAIL_EFFECT_DESC Desc{};
+    Desc.pParentWorldMatrix = pParentMatrix;
+    Desc.pStartBoneMatrix = pStart;
+    Desc.pEndBoneMatrix = pEnd;
+    Desc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Trail_IgrisWeapon");
+    Desc.vColor = _float4(1.35f, 0.03f, 0.02f, 1.45f);
+    Desc.iMaxSamples = 36;
+    Desc.fSampleInterval = 0.006f;
+    Desc.fLifeTime = 0.24f;
+    Desc.fMinSampleDistance = 0.03f;
+
+    m_pWeaponTrail = dynamic_cast<CWeaponTrailEffect*>(
+        m_pGameInstance->Clone_Prototype(
+            PROTOTYPE::GAMEOBJECT,
+            ETOUI(LEVEL::GAMEPLAY),
+            TEXT("Prototype_GameObject_WeaponTrailEffect"),
+            &Desc));
+
+    return (nullptr != m_pWeaponTrail) ? S_OK : E_FAIL;
+}
 HRESULT CMonster::Ready_StateMachine()
 {
     if (nullptr == m_pBody)
@@ -522,7 +604,7 @@ void CMonster::On_WeaponHitEnter(CCollider* pOther)
 
     CPlayer* pPlayer = dynamic_cast<CPlayer*>(pTarget);
     if (nullptr != pPlayer)
-        pPlayer->Take_Damage(10.f, this);
+        pPlayer->Take_Damage(200.f, this);
 
     if (auto* pHUD = CHUD_GamePlay::Get_Instance())
         pHUD->Notify_Hit(this);
@@ -732,6 +814,7 @@ void CMonster::Free()
 
     Safe_Release(m_pCollider);
     Safe_Release(m_pStateMachine);
+    Safe_Release(m_pWeaponTrail);
     Safe_Release(m_pWeapon);
     Safe_Release(m_pBody);
     Safe_Release(m_pNavigationAgent);

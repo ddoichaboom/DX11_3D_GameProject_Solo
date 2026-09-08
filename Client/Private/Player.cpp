@@ -10,8 +10,11 @@
 #include "Monster.h"
 #include "Collider.h"
 #include "Layer.h"
+#include <cstdlib>
 #include "Cell.h"
 #include "HUD_GamePlay.h"
+#include "DamageFont.h"
+#include "WeaponTrailEffect.h"
 
 namespace
 {
@@ -62,16 +65,30 @@ void CPlayer::Take_Damage(_float fAmount, CMonster* pAttacker)
 	if (m_fCurrentHP <= 0.f)
 		return;
 
+	auto frand01 = []() { return static_cast<_float>(rand()) / static_cast<_float>(RAND_MAX); };
+	const _bool bCrit = (frand01() < 0.25f);
+	fAmount *= (0.8f + frand01() * 0.4f);
+	if (bCrit)
+		fAmount *= 2.f;
+
 	m_fCurrentHP = max(0.f, m_fCurrentHP - fAmount);
+
+	if (CDamageFont* pDF = CDamageFont::Get_Instance())
+	{
+		_float3 vCenter;
+		XMStoreFloat3(&vCenter, m_pTransformCom->Get_State(STATE::POSITION));
+		vCenter.y += 1.5f;
+		pDF->Spawn(vCenter, static_cast<_int>(fAmount + 0.5f), bCrit);
+	}
 
 	// 일반 피격 경직 진입 — DAMAGE 단일 액션 + STEP축 강도 4단계 (Float/Down 미사용)
 	// priority 6 이라 공격(3)/가드(4)/스킬(5) 진행 중이면 캔슬되고 경직으로 전환,
 	// FLOAT(7)/QTE(8) 중이거나 회피(무적) 중에는 진입하지 않음
 	if (m_fCurrentHP > 0.f && nullptr != m_pStateMachine)
 	{
-		constexpr _float fThresholdA = 10.f;   // UpperOnly → A 경계
-		constexpr _float fThresholdB = 20.f;   // A → B 경계
-		constexpr _float fThresholdC = 35.f;   // B → C 경계
+		constexpr _float fThresholdA = 150.f;   // UpperOnly → A 경계
+		constexpr _float fThresholdB = 300.f;   // A → B 경계
+		constexpr _float fThresholdC = 550.f;   // B → C 경계
 
 		CHARACTER_ACTION_STEP eStep;
 		if (fAmount < fThresholdA)
@@ -173,6 +190,9 @@ HRESULT CPlayer::Initialize(void* pArg)
 		return E_FAIL;
 
 	if (FAILED(Ready_PartObjects()))
+		return E_FAIL;
+
+	if (FAILED(Ready_WeaponTrailEffects()))
 		return E_FAIL;
 
 	m_pIntentResolver = CIntentResolver::Create();
@@ -298,6 +318,7 @@ void CPlayer::Late_Update(_float fTimeDelta)
 	}
 
 	Update_SkillCollider();
+	Tick_WeaponTrailEffects(fTimeDelta);
 }
 
 HRESULT CPlayer::Render()
@@ -344,6 +365,9 @@ void CPlayer::Handle_ActionTransition(CHARACTER_ACTION eFromAction, CHARACTER_AC
 		return;
 
 	m_pBody->Play_Action(eToAction, eToStep);
+
+	if (false == bInitial)
+		Play_PlayerActionSound(eToAction, eToStep);
 
 	const _bool bLeavingDash =
 		(CHARACTER_ACTION::DASH == eFromAction || CHARACTER_ACTION::BACK_DASH == eFromAction) &&
@@ -597,6 +621,60 @@ HRESULT CPlayer::Ready_PartObjects()
 
 	SetupWeaponHitCallback(m_pWeaponR);
 	SetupWeaponHitCallback(m_pWeaponL);
+
+	return S_OK;
+}
+
+HRESULT CPlayer::Ready_WeaponTrailEffects()
+{
+	if (nullptr == m_pBody)
+		return E_FAIL;
+
+	const _float4x4* pParentMatrix = &m_pBody->Get_CombinedWorldMatrix();
+	const _float4x4* pRightStart = m_pBody->Get_BoneMatrixPtr("Prop_Weapon_Dualwield_01_R");
+	const _float4x4* pRightEnd = m_pBody->Get_BoneMatrixPtr("FX_Point_R_Weapon");
+	const _float4x4* pLeftStart = m_pBody->Get_BoneMatrixPtr("Prop_Weapon_Dualwield_01_L");
+	const _float4x4* pLeftEnd = m_pBody->Get_BoneMatrixPtr("FX_Point_L_Weapon");
+
+	if (nullptr == pParentMatrix || nullptr == pRightStart || nullptr == pRightEnd ||
+		nullptr == pLeftStart || nullptr == pLeftEnd)
+		return E_FAIL;
+
+	CWeaponTrailEffect::WEAPON_TRAIL_EFFECT_DESC RightDesc{};
+	RightDesc.pParentWorldMatrix = pParentMatrix;
+	RightDesc.pStartBoneMatrix = pRightStart;
+	RightDesc.pEndBoneMatrix = pRightEnd;
+	RightDesc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Trail_PlayerWeapon");
+	RightDesc.vColor = Get_WeaponTrailColor(Resolve_HandWeapon(false));
+	RightDesc.iMaxSamples = 28;
+	RightDesc.fSampleInterval = 0.006f;
+	RightDesc.fLifeTime = 0.18f;
+	RightDesc.fMinSampleDistance = 0.006f;
+
+	m_pWeaponTrailR = dynamic_cast<CWeaponTrailEffect*>(
+		m_pGameInstance->Clone_Prototype(
+			PROTOTYPE::GAMEOBJECT,
+			ETOUI(LEVEL::GAMEPLAY),
+			TEXT("Prototype_GameObject_WeaponTrailEffect"),
+			&RightDesc));
+
+	if (nullptr == m_pWeaponTrailR)
+		return E_FAIL;
+
+	CWeaponTrailEffect::WEAPON_TRAIL_EFFECT_DESC LeftDesc = RightDesc;
+	LeftDesc.pStartBoneMatrix = pLeftStart;
+	LeftDesc.pEndBoneMatrix = pLeftEnd;
+	LeftDesc.vColor = Get_WeaponTrailColor(Resolve_HandWeapon(true));
+
+	m_pWeaponTrailL = dynamic_cast<CWeaponTrailEffect*>(
+		m_pGameInstance->Clone_Prototype(
+			PROTOTYPE::GAMEOBJECT,
+			ETOUI(LEVEL::GAMEPLAY),
+			TEXT("Prototype_GameObject_WeaponTrailEffect"),
+			&LeftDesc));
+
+	if (nullptr == m_pWeaponTrailL)
+		return E_FAIL;
 
 	return S_OK;
 }
@@ -1276,6 +1354,28 @@ void CPlayer::Refresh_WeaponVisibility()
 		m_pWeaponL->Set_Visible(m_bWeaponsVisible && m_bLeftVisibleFromLoadOut);
 }
 
+void CPlayer::Set_WeaponTrailActive(_bool bActive)
+{
+	if (nullptr != m_pWeaponTrailR)
+	{
+		m_pWeaponTrailR->Set_Color(Get_WeaponTrailColor(Resolve_HandWeapon(false)));
+		m_pWeaponTrailR->Set_Active(bActive && m_bWeaponsVisible);
+	}
+
+	if (nullptr != m_pWeaponTrailL)
+	{
+		m_pWeaponTrailL->Set_Color(Get_WeaponTrailColor(Resolve_HandWeapon(true)));
+		m_pWeaponTrailL->Set_Active(bActive && m_bWeaponsVisible && m_bLeftVisibleFromLoadOut);
+	}
+}
+
+void CPlayer::Play_FootstepSound()
+{
+	if (nullptr == m_pGameInstance)
+		return;
+
+	m_pGameInstance->Play_Sound(TEXT("PC_FootPrint_Stone_01_02.wav"), SOUND_CHANNEL::SFX, 0.28f, false);
+}
 void CPlayer::Update_WeaponHitboxes()
 {
 	const _bool bHitboxActive =
@@ -1303,6 +1403,47 @@ void CPlayer::Update_WeaponHitboxes()
 		m_AttackHitTargets.clear();
 
 	m_bPrevAttackHitboxActive = bHitboxActive;
+}
+
+void CPlayer::Tick_WeaponTrailEffects(_float fTimeDelta)
+{
+	if (nullptr != m_pWeaponTrailR)
+	{
+		m_pWeaponTrailR->Update(fTimeDelta);
+		m_pWeaponTrailR->Late_Update(fTimeDelta);
+	}
+
+	if (nullptr != m_pWeaponTrailL)
+	{
+		m_pWeaponTrailL->Update(fTimeDelta);
+		m_pWeaponTrailL->Late_Update(fTimeDelta);
+	}
+}
+
+_float4 CPlayer::Get_WeaponTrailColor(EQUIPPED_WEAPON_ID eWeapon) const
+{
+	switch (eWeapon)
+	{
+	case EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG:
+		return _float4(0.05f, 0.38f, 1.15f, 1.35f);
+
+	case EQUIPPED_WEAPON_ID::KNIGHT_KILLER:
+		return _float4(1.25f, 0.04f, 0.02f, 1.35f);
+
+	default:
+		return _float4(0.9f, 0.9f, 1.f, 1.f);
+	}
+}
+
+EQUIPPED_WEAPON_ID CPlayer::Resolve_HandWeapon(_bool bLeftHand) const
+{
+	if (EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon)
+		return (true == bLeftHand) ? EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG : EQUIPPED_WEAPON_ID::KNIGHT_KILLER;
+
+	if (EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == m_eEquippedWeapon)
+		return (true == bLeftHand) ? EQUIPPED_WEAPON_ID::KNIGHT_KILLER : EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG;
+
+	return (true == bLeftHand) ? EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG : EQUIPPED_WEAPON_ID::KNIGHT_KILLER;
 }
 
 void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction, CMonster* pAttacker)
@@ -1371,6 +1512,12 @@ void CPlayer::On_DamageBlocked(CMonster* pAttacker)
 	if (nullptr != pAttacker)
 		pAttacker->Force_Break();
 
+	if (nullptr != m_pGameInstance)
+	{
+		m_pGameInstance->Play_Sound(TEXT("SungJinWoo_S_Artifact_IceSpike_Parry_Skill_01_1_St.wav"), SOUND_CHANNEL::SFX, 0.75f, false);
+		m_pGameInstance->Play_Sound(TEXT("Dia_SungJinWooS_QTE_Parrying_1_1.wav"), SOUND_CHANNEL::PLAYER, 0.55f, false);
+	}
+
 	if (nullptr != m_pStateMachine)
 		m_pStateMachine->Enter_ParryCounter();
 
@@ -1416,7 +1563,9 @@ void CPlayer::On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther)
 	if (nullptr == pMonster)
 		return;
 
-	pMonster->Take_Damage(10.f);
+	m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.45f, false);
+
+	pMonster->Take_Damage(250.f);
 }
 
 const WEAPON_INFO* CPlayer::Find_WeaponInfo(EQUIPPED_WEAPON_ID eId)
@@ -1470,6 +1619,18 @@ void CPlayer::On_DodgeSucceeded(CMonster* pAttacker)
 
 	m_bDodgeConsumedThisInvincible = true;
 	Open_QTEWindow(pAttacker);
+
+	if (nullptr != m_pGameInstance)
+	{
+		const _tchar* pVoiceKeys[] =
+		{
+			TEXT("Dia_SungJinWooS_Extreme_Dash_1_1.wav"),
+			TEXT("Dia_SungJinWooS_Extreme_Dash_1_2.wav"),
+		};
+
+		const _uint iIndex = rand() % _countof(pVoiceKeys);
+		m_pGameInstance->Play_Sound(pVoiceKeys[iIndex], SOUND_CHANNEL::PLAYER, 0.75f, false);
+	}
 }
 
 void CPlayer::Tick_QTEWindow(_float fTimeDelta)
@@ -1583,6 +1744,41 @@ void CPlayer::On_SkillColliderHit(CCollider* pOther)
 	CMonster* pMonster = dynamic_cast<CMonster*>(pTarget);
 	if (nullptr == pMonster)
 		return;
+
+	const CHARACTER_ACTION		eCurAction = m_pStateMachine->Get_CurrentCharacterAction();
+	const CHARACTER_ACTION_STEP eCurStep = m_pStateMachine->Get_CurrentCharacterStep();
+
+	switch (m_eEquippedWeapon)
+	{
+	case EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG:
+		switch (eCurAction)
+		{
+		case CHARACTER_ACTION::SKILL_F:
+		case CHARACTER_ACTION::SKILL_E:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.55f, false);
+			break;
+
+		default:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.5f, false);
+			break;
+		}
+		break;
+	case EQUIPPED_WEAPON_ID::KNIGHT_KILLER:
+		switch (eCurAction)
+		{
+		case CHARACTER_ACTION::SKILL_F:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.5f, false);
+			break;
+
+		default:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.5f, false);
+			break;
+		}
+		break;
+	default:
+		m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.5f, false);
+		break;
+	}
 
 	pMonster->Take_Damage(m_fSkillColliderDamage);
 }
@@ -1719,6 +1915,81 @@ void CPlayer::Teleport_BehindTarget(CMonster* pTarget)
 	Face_DirectionImmediately(vToMonsterDir);
 }
 
+void CPlayer::Play_PlayerActionSound(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep)
+{
+	if (nullptr == m_pGameInstance)
+		return;
+
+	switch (eAction)
+	{
+	case CHARACTER_ACTION::RUN:
+	case CHARACTER_ACTION::RUN_FAST:
+	case CHARACTER_ACTION::RUN_END:
+	case CHARACTER_ACTION::RUN_END_RIGHT:
+	case CHARACTER_ACTION::RUN_END_LEFT:
+	case CHARACTER_ACTION::RUN_FAST_LEFT:
+	case CHARACTER_ACTION::RUN_FAST_RIGHT:
+		break;
+
+	case CHARACTER_ACTION::DASH:
+		m_pGameInstance->Play_Sound(TEXT("SungJinWoo_Dash.wav"), SOUND_CHANNEL::PLAYER, 0.55f, false);
+		break;
+
+	case CHARACTER_ACTION::BACK_DASH:
+		m_pGameInstance->Play_Sound(TEXT("SungJinWoo_BackDash.wav"), SOUND_CHANNEL::PLAYER, 0.55f, false);
+		break;
+
+	case CHARACTER_ACTION::BASIC_ATTACK_01:
+	{
+		m_pGameInstance->Play_Sound(TEXT("Wp_Swish_Dagger_Large_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.42f, false);
+		m_pGameInstance->Play_Sound(TEXT("Wp_Swish_Dagger_Large_2_1_St.wav"), SOUND_CHANNEL::SFX, 0.35f, false);
+		break;
+	}
+
+	case CHARACTER_ACTION::BASIC_ATTACK_02:
+		m_pGameInstance->Play_Sound(TEXT("Wp_Stab_Dagger_Multiple_Large_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.45f, false);
+		break;
+
+	case CHARACTER_ACTION::BASIC_ATTACK_03:
+		m_pGameInstance->Play_Sound(TEXT("Wp_Swish_Dagger_Large_5_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.4f, false);
+		break;
+
+	case CHARACTER_ACTION::SKILL_F:
+		if (EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon)
+		{
+			m_pGameInstance->Play_Sound(TEXT("SungJinWoo_S_GS_KnightKiller_Skill_1-3_St.wav"), SOUND_CHANNEL::SFX, 0.65f, false);
+		}
+		break;
+
+	case CHARACTER_ACTION::SKILL_Q:
+		break;
+
+	case CHARACTER_ACTION::SKILL_E:
+		
+		break;
+
+	case CHARACTER_ACTION::QTE_EXTREME_DASH:
+	{
+		const _tchar* pVoiceKeys[] =
+		{
+			TEXT("Dia_SungJinWooS_QTE_ExtremeDash_Skill_1_1.wav"),
+			TEXT("Dia_SungJinWooS_QTE_ExtremeDash_Skill_1_2.wav"),
+			TEXT("Dia_SungJinWooS_QTE_ExtremeDash_Skill_1_3.wav"),
+		};
+
+		const _uint iIndex = rand() % _countof(pVoiceKeys);
+		m_pGameInstance->Play_Sound(pVoiceKeys[iIndex], SOUND_CHANNEL::PLAYER, 0.85f, false);
+		break;
+	}
+
+	case CHARACTER_ACTION::DAMAGE:
+		m_pGameInstance->Play_Sound(TEXT("PC_Hit_Ashborn_Dagger_Weak_1_3_St.wav"), SOUND_CHANNEL::PLAYER, 0.8f, false);
+		break;
+
+	default:
+		break;
+	}
+}
 CPlayer* CPlayer::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	CPlayer* pInstance = new CPlayer(pDevice, pContext);
@@ -1769,6 +2040,8 @@ void CPlayer::Free()
 	Safe_Release(m_pNavigationAgent);
 	Safe_Release(m_pStateMachine);
 	Safe_Release(m_pIntentResolver);
+	Safe_Release(m_pWeaponTrailL);
+	Safe_Release(m_pWeaponTrailR);
 	Safe_Release(m_pWeaponL);
 	Safe_Release(m_pWeaponR);
 	Safe_Release(m_pBody);

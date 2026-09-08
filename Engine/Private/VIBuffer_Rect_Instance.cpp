@@ -182,6 +182,33 @@ HRESULT CVIBuffer_Rect_Instance::Update_Billboard(const vector<_float4>& Positio
 	return Update_InstanceBuffer(m_Instances.data(), iNumInstances, sizeof(VTXRECT_INSTANCE));
 }
 
+HRESULT CVIBuffer_Rect_Instance::Update_Billboard(const vector<_float4>& Positions, const _float2& vSize, const vector<_float4>& TexInfos, const vector<_float4>& Colors, _fmatrix ViewMatrix)
+{
+	const _uint iNumInstances = static_cast<_uint>(Positions.size());
+	if (iNumInstances > m_iMaxInstanceCount)
+		return E_FAIL;
+	if (TexInfos.size() != Positions.size() || Colors.size() != Positions.size())
+		return E_FAIL;
+
+	_matrix ViewInverse = XMMatrixInverse(nullptr, ViewMatrix);
+
+	_vector vRight = XMVector3Normalize(ViewInverse.r[0]) * vSize.x;
+	_vector vUp = XMVector3Normalize(ViewInverse.r[1]) * vSize.y;
+	_vector vLook = XMVector3Normalize(ViewInverse.r[2]);
+
+	for (_uint i = 0; i < iNumInstances; ++i)
+	{
+		XMStoreFloat4(&m_Instances[i].vRight, vRight);
+		XMStoreFloat4(&m_Instances[i].vUp, vUp);
+		XMStoreFloat4(&m_Instances[i].vLook, vLook);
+		m_Instances[i].vTranslation = Positions[i];
+		m_Instances[i].vTexInfo = TexInfos[i];
+		m_Instances[i].vColor = Colors[i];
+	}
+
+	return Update_InstanceBuffer(m_Instances.data(), iNumInstances, sizeof(VTXRECT_INSTANCE));
+}
+
 CVIBuffer_Rect_Instance* CVIBuffer_Rect_Instance::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, _uint iMaxInstanceCount)
 {
 	CVIBuffer_Rect_Instance* pInstance = new CVIBuffer_Rect_Instance(pDevice, pContext);

@@ -9,7 +9,7 @@
 
 `C++17` · `DirectX 11` · `HLSL` · `Effects11` · `DirectXTK` · `Assimp` · `RTTR` · `ImGui` · `ImGuizmo`
 
-**2026.03.31 ~ 2026.05.20, 진행 중** · **4개 모듈** `Engine / Client / GameApp / Editor` · **83 commits**
+**2026.03.31 ~ 2026.05.25, 진행 중** · **4개 모듈** `Engine / Client / GameApp / Editor` · **96 commits** · **약 33,000 LOC (자체 코드)**
 
 </div>
 
@@ -90,7 +90,7 @@ Input_Device::Update
   -> PipeLine::Update     # view/proj cache
   -> Late_Update          # render group registration, animation late work
   -> Collision_Manager    # pair check, enter/stay/exit
-  -> Renderer::Draw       # priority -> nonblend -> blend -> ui
+  -> Renderer::Draw       # priority -> shadow -> nonblend -> light(MRT) -> combined -> blend -> ui
   -> DebugDraw / ImGui(Editor) / Present
 ```
 
@@ -112,11 +112,11 @@ FBX
 | Data | 역할 |
 |---|---|
 | **SLMD** | 자체 모델/애니메이션 바이너리. mesh, material, bone, animation, notify 저장 |
-| **NavData** | NavMesh vertex/cell 데이터. neighbor는 로드 후 재계산 |
-| **SceneData** | NavData 경로와 SpawnPoint를 포함한 런타임 scene 정보 |
-| **UIScene** | UI element 배치, 텍스처, 색상, sweep mode 등 HUD/UI 데이터 |
+| **NavData** | NavMesh vertex/cell 데이터(`SLNM`). neighbor는 로드 후 재계산 |
+| **SceneData** | NavData 경로 + SpawnPoint + SceneLight + Camera Collider(`SLSC`, v5) |
+| **UIScene** | UI element 배치/텍스처/색상/sweep mode 등 HUD 데이터(`SLUI`, v7) |
 
-SLMD는 v1에서 시작해 loop/root motion/pre-transform, 이후 AnimNotify까지 확장했습니다. 포맷이 변할 때마다 기존 데이터를 버리지 않기 위해 version 분기와 fallback 로드를 유지했습니다.
+네 종류 포맷 모두 **magic(4byte) + version + body** 구조의 자체 바이너리이며, `CBinaryWriter/CBinaryReader`를 공유합니다. SLMD는 v1→v3(loop/root motion/pre-transform/AnimNotify), SceneData는 v1→v5, UIScene는 v1→v7로 확장됐습니다. 포맷이 변할 때마다 기존 데이터를 버리지 않기 위해 **version 분기 + 누락 필드 fallback 로드**를 유지했습니다 — 이 패턴이 이 프로젝트 데이터 파이프라인의 핵심 규약입니다.
 
 ---
 
@@ -155,10 +155,10 @@ SLMD는 v1에서 시작해 loop/root motion/pre-transform, 이후 AnimNotify까�
 ### Gameplay Framework
 
 - `Input_Device -> IntentResolver -> Player_StateMachine`
-- `State x Action x Weapon` 기반 animation lookup
-- Basic Attack combo, Guard, Dash charge, root motion
-- Monster Break / Crash / Death transition
-- 거리 기반 Boss AI 1차 패턴 선택
+- `State x Action x Weapon x EquippedId` 기반 animation lookup
+- Basic Attack combo (early-cancel), Guard/Parry, Dash charge + regen, root motion
+- Weapon swap, F/Q/E skill slot + cooldown, QTE window, 피격 경직/무적 프레임
+- Monster Break(스태거) / Crash / Death transition
 
 ### Collision / Animation Event
 
@@ -167,11 +167,30 @@ SLMD는 v1에서 시작해 loop/root motion/pre-transform, 이후 AnimNotify까�
 - AnimNotify가 공격 판정 타이밍을 열고 닫음
 - Weapon OBB는 socket bone world matrix를 기준으로 갱신
 
+### Combat / Monster AI
+
+- Monster 거리 밴드(근/중/원거리) 기반 `Select_AIAction` + decision interval
+- Boss: 광역 공격(원/링) telegraph 프리뷰, slash projectile, dash 패턴, 패턴 쿨다운/압박 추적
+- HP / Break(스태거) 시스템과 Crash(다운) 상태 전이
+- Player ↔ Monster 데미지 전달 시 attacker 참조 전파 (QTE/반격 트리거)
+
+### Rendering
+
+- Deferred Shading: `MRT_GameObjects(Diffuse/Normal/Depth) -> MRT_LightAcc(Shade/Specular) -> Combined`
+- Shadow Map (4096) light-depth pass + Specular 마스킹 + Debug RT 뷰 토글
+- Atlas instance billboard VFX (Torch 불꽃 additive pass), Weapon Trail, DamageFont 인스턴싱
+
 ### UI / HUD
 
 - UI element를 Editor에서 배치하고 `.uiscene`으로 저장
 - HUD는 게임 오브젝트로 런타임 layer에 통합
-- HP/MP/Break/Dash는 shader 기반 UV clip과 sweep pass로 표현
+- HP/MP/Break/Dash/Skill/Combo/QTE/Quest 슬롯을 shader 기반 UV clip과 sweep pass로 표현
+
+### Audio / Cinematic
+
+- FMOD 기반 `Sound_Manager` — BGM/SFX/채널별 제어를 `CGameInstance` 위임으로 격리
+- `Camera_Cinematic` — 본 pivot attach 기반 보스 인트로 컷신 + `Camera_Follow` 복귀
+- NavMesh cell 트리거 기반 비디오 컷신(`VideoTexture`) + Fade 연출
 
 ---
 
@@ -231,12 +250,12 @@ AI 활용의 핵심은 결과물을 그대로 받아들이는 것이 아니라, 
 
 ```text
 feature/ImGuizmo      Editor transform 조작 + Inspector 연동
-feature/Player        Input/Intent/StateMachine + combo/guard
-feature/Camera        Follow camera + Style C movement
-feature/NavMesh       NavMesh editor + SceneData spawn
+feature/Player        Input/Intent/StateMachine + combo/guard/skill
+feature/Camera        Follow camera + Style C movement + Cinematic
+feature/NavMesh       NavMesh editor + SceneData spawn/light/cam collider
 feature/Font-2DUI     Font system + 2D Canvas + Logo/Loading
 feature/Collision     Collider + group matrix + AnimNotify hitbox
-feature/HUD           Gameplay HUD + Boss AI 1차
+feature/HUD           Gameplay HUD + Boss AI + Deferred/Shadow + FMOD
 ```
 
 `명세서/통합_구현계획_v3.md`는 현재 작업의 기준 문서입니다. 완료, 보류, 변경된 결정은 삭제하지 않고 이유를 남겼습니다.

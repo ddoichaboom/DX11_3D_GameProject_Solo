@@ -162,12 +162,13 @@ public:
 #pragma endregion
 
 #pragma region SOUND_MANAGER
-	HRESULT						Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume = 1.f, _bool bLoop = false);
-	HRESULT						Play_BGM(const _wstring& strSoundKey, _float fVolume = 1.f, _bool bLoop = true);
-	void						Stop_Sound(SOUND_CHANNEL eChannel);
-	void						Stop_AllSounds();
-	void						Set_SoundVolume(SOUND_CHANNEL eChannel, _float fVolume);
-	_bool						Is_SoundPlaying(SOUND_CHANNEL eChannel) const;
+	HRESULT                     Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume = 1.f, _bool bLoop = false);
+	HRESULT                     Play_SoundSequence(const _wstring* pSoundKeys, _uint iNumSounds, SOUND_CHANNEL eChannel, _float fVolume = 1.f);
+	HRESULT                     Play_BGM(const _wstring& strSoundKey, _float fVolume = 1.f, _bool bLoop = true);
+	void                        Stop_Sound(SOUND_CHANNEL eChannel);
+	void                        Stop_AllSounds();
+	void                        Set_SoundVolume(SOUND_CHANNEL eChannel, _float fVolume);
+	_bool                       Is_SoundPlaying(SOUND_CHANNEL eChannel) const;
 #pragma endregion
 
 #pragma region Font_MANAGER

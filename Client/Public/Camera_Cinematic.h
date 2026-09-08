@@ -45,6 +45,7 @@ public:
 		_float			fLerpSpeed = { 0.f };
 		_bool			bLoop = { false };
 		_bool			bDeactivateOnFinish = { true };
+		_bool			bUsePivotRotation = { true };
 	}ATTACH_DESC;
 
 protected:
@@ -70,6 +71,7 @@ public:
 	void				Deactivate_Cinematic();
 	_bool				Is_CinematicActive() const { return m_bCinematicActive; }
 	MODE				Get_Mode() const { return m_eMode; }
+	void				Set_ReturnCamera(CCamera* pReturnCamera);
 
 private:
 	_bool				Resolve_AnchorWorldMatrix(const ANCHOR_DESC& Anchor, _float4x4* pOutWorld) const;
@@ -81,6 +83,7 @@ private:
 	void				Apply_Fovy(_float fFovy);
 
 private:
+	CCamera*			m_pReturnCamera = { nullptr };
 	MODE				m_eMode = { MODE::NONE };
 	ATTACH_DESC			m_Desc = {};
 

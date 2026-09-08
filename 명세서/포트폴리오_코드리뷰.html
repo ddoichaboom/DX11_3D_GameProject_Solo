@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solo Leveling — 코드 리뷰 &amp; 포트폴리오 정리</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#11161d; --panel:#161b22; --panel2:#1c2129;
+    --border:#262d38; --border2:#30394a;
+    --text:#e6edf3; --muted:#9aa7b4; --dim:#6e7b8a;
+    --accent:#6ea8ff; --accent2:#7ee0c0; --accent3:#c792ea; --warn:#ffb454; --danger:#ff6b81;
+    --good:#7ee0c0;
+    --code-bg:#0b0f14;
+    --radius:14px;
+    --maxw:1080px;
+    --mono:'JetBrains Mono','Cascadia Code','Consolas','D2Coding',monospace;
+    --sans:'Pretendard','Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:radial-gradient(1200px 600px at 80% -200px,#16243a 0%,transparent 60%),var(--bg);
+    color:var(--text);font-family:var(--sans);line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:#1d2530;padding:.12em .42em;border-radius:6px;border:1px solid var(--border);color:#cfe3ff}
+  pre{margin:0}
+  pre code{display:block;background:none;border:none;padding:0;color:inherit}
+
+  /* layout */
+  .layout{display:flex;max-width:1340px;margin:0 auto;gap:0}
+  nav.toc{
+    position:sticky;top:0;align-self:flex-start;height:100vh;width:248px;flex:0 0 248px;
+    padding:28px 14px 28px 26px;border-right:1px solid var(--border);overflow-y:auto;
+  }
+  nav.toc .brand{font-weight:800;font-size:15px;letter-spacing:.3px;margin-bottom:4px}
+  nav.toc .brand span{color:var(--accent)}
+  nav.toc .sub{font-size:11.5px;color:var(--dim);margin-bottom:22px;font-family:var(--mono)}
+  nav.toc a{display:block;color:var(--muted);font-size:13.5px;padding:7px 12px;border-radius:8px;margin:2px 0;border-left:2px solid transparent;transition:.15s}
+  nav.toc a:hover{background:var(--panel);color:var(--text);text-decoration:none}
+  nav.toc a.active{background:#15314e33;color:var(--accent);border-left:2px solid var(--accent);font-weight:600}
+  nav.toc .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--dim);margin:18px 0 4px 12px}
+
+  main{flex:1 1 auto;min-width:0;padding:0 48px 120px;max-width:var(--maxw);margin:0 auto}
+  section{padding-top:64px;margin-top:-24px}
+  @media(max-width:980px){
+    nav.toc{display:none}
+    main{padding:0 22px 80px}
+  }
+
+  /* hero */
+  header.hero{padding:72px 0 36px;border-bottom:1px solid var(--border)}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--accent2);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px}
+  h1.title{font-size:42px;line-height:1.15;margin:0 0 14px;font-weight:850;letter-spacing:-.5px}
+  h1.title .g{background:linear-gradient(100deg,#6ea8ff,#7ee0c0 60%,#c792ea);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:17px;color:var(--muted);max-width:760px;margin:0 0 26px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .badge{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;background:var(--panel);border:1px solid var(--border2);color:var(--muted)}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:34px 0 8px}
+  @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{background:linear-gradient(160deg,var(--panel),var(--bg2));border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px}
+  .metric .n{font-size:28px;font-weight:800;font-family:var(--mono);color:var(--accent)}
+  .metric .n.alt{color:var(--accent2)}
+  .metric .n.alt2{color:var(--accent3)}
+  .metric .l{font-size:12.5px;color:var(--muted);margin-top:3px}
+
+  /* headings */
+  h2{font-size:27px;font-weight:800;margin:6px 0 6px;letter-spacing:-.3px;display:flex;align-items:center;gap:12px}
+  h2 .ix{font-family:var(--mono);font-size:14px;color:var(--accent);background:#15314e44;border:1px solid var(--border2);border-radius:8px;padding:3px 9px;font-weight:700}
+  h2 + .deck{color:var(--muted);font-size:15.5px;margin:0 0 22px;max-width:780px}
+  h3{font-size:18.5px;font-weight:700;margin:34px 0 10px;color:#dce6f2}
+  h3::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--accent2);margin-right:9px;transform:translateY(-2px)}
+  h4{font-size:15px;font-weight:700;margin:20px 0 8px;color:#cdd9e6}
+
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:6px 0}
+  strong{color:#fff;font-weight:680}
+  .muted{color:var(--muted)}
+
+  /* cards / callouts */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin:16px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+  .callout{border-left:3px solid var(--accent);background:#13202f66;padding:14px 18px;border-radius:0 10px 10px 0;margin:16px 0}
+  .callout.warn{border-color:var(--warn);background:#2a210f55}
+  .callout.good{border-color:var(--good);background:#0f241d55}
+  .callout .t{font-weight:700;font-size:13.5px;color:#fff;margin-bottom:4px;display:flex;align-items:center;gap:7px}
+  .callout.warn .t{color:var(--warn)}
+  .callout.good .t{color:var(--good)}
+
+  /* tables */
+  .tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;overflow:hidden;border-radius:10px;border:1px solid var(--border)}
+  .tbl th{background:var(--panel2);text-align:left;padding:11px 14px;font-size:12.5px;letter-spacing:.4px;color:var(--accent2);font-weight:700;border-bottom:1px solid var(--border2)}
+  .tbl td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--muted)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl tr:hover td{background:#141a22}
+  .tbl td strong{color:#e6edf3}
+  .tbl code{font-size:12px}
+
+  /* code */
+  .code{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;margin:16px 0;overflow:hidden}
+  .code .bar{display:flex;align-items:center;gap:7px;padding:9px 14px;border-bottom:1px solid var(--border);background:#0e141b}
+  .code .bar .dot{width:10px;height:10px;border-radius:50%}
+  .code .bar .fn{font-family:var(--mono);font-size:12px;color:var(--dim);margin-left:6px}
+  .code pre{padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.65;color:#c9d4e0}
+  .k{color:#ff7b9c}.t{color:#7ee0c0}.f{color:#82aaff}.s{color:#c3e88d}.c{color:#5a6b7a;font-style:italic}.n{color:#f78c6c}.p{color:#c792ea}
+
+  /* flow diagram */
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:18px 0;font-family:var(--mono);font-size:12.5px}
+  .flow .step{background:var(--panel);border:1px solid var(--border2);border-radius:10px;padding:10px 13px;display:flex;flex-direction:column;justify-content:center;min-width:84px;text-align:center}
+  .flow .step b{color:#fff;font-size:12.5px;font-weight:700}
+  .flow .step span{color:var(--dim);font-size:10.5px}
+  .flow .arr{display:flex;align-items:center;color:var(--accent);font-size:18px;padding:0 8px}
+  .flow.vert{flex-direction:column;align-items:flex-start;gap:0}
+  .flow.vert .arr{transform:rotate(90deg);padding:4px 0 4px 34px}
+
+  /* numbered pipeline */
+  .pipe{counter-reset:s;margin:18px 0;border-left:2px dashed var(--border2);padding-left:0}
+  .pipe .row{position:relative;padding:4px 0 18px 52px;counter-increment:s}
+  .pipe .row::before{content:counter(s);position:absolute;left:-15px;top:0;width:30px;height:30px;border-radius:50%;background:var(--panel);border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .pipe .row .h{font-weight:700;color:#fff}
+  .pipe .row .h code{font-size:12.5px}
+  .pipe .row .d{color:var(--muted);font-size:13.5px;margin-top:2px}
+
+  .tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--border2);color:var(--muted);background:var(--panel);margin:2px 4px 2px 0}
+  .tag.b{color:var(--accent);border-color:#2d4a6b}
+  .tag.g{color:var(--accent2);border-color:#2b5347}
+  .tag.v{color:var(--accent3);border-color:#46345e}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.split{grid-template-columns:1fr}}
+  .col h4{margin-top:0}
+  .chk li{list-style:none;position:relative;padding-left:26px}
+  .chk li::before{content:"✓";position:absolute;left:0;color:var(--good);font-weight:800}
+  .imp li{list-style:none;position:relative;padding-left:26px}
+  .imp li::before{content:"▲";position:absolute;left:2px;color:var(--warn);font-size:11px;top:5px}
+
+  hr.sep{border:none;border-top:1px solid var(--border);margin:42px 0}
+  footer{border-top:1px solid var(--border);margin-top:60px;padding-top:28px;color:var(--dim);font-size:13px}
+  .scorerow{display:flex;align-items:center;gap:14px;margin:8px 0}
+  .scorerow .lbl{width:150px;font-size:13.5px;color:var(--muted)}
+  .bar-bg{flex:1;height:9px;background:var(--panel2);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
+  .bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#6ea8ff,#7ee0c0)}
+  .scorerow .val{width:42px;text-align:right;font-family:var(--mono);font-size:12.5px;color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc" id="toc">
+  <div class="brand">Solo<span>Leveling</span></div>
+  <div class="sub">CODE REVIEW · v2026.05</div>
+  <div class="grp">개요</div>
+  <a href="#overview">프로젝트 개요</a>
+  <div class="grp">설계</div>
+  <a href="#framework">1. 프레임워크</a>
+  <a href="#level">2. 레벨 디자인</a>
+  <a href="#gameplay">3. 게임플레이 구현</a>
+  <a href="#editor">4. 에디터 구현</a>
+  <a href="#io">5. 저장 &amp; 로드 관리</a>
+  <div class="grp">평가</div>
+  <a href="#review">6. 코드 리뷰 &amp; 총평</a>
+</nav>
+
+<main>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="eyebrow">DirectX 11 · Action RPG Framework · Custom Editor</div>
+  <h1 class="title">Solo Leveling —<br><span class="g">엔진·게임플레이·에디터</span> 통합 코드 리뷰</h1>
+  <p class="lede">
+    수업용 DirectX 11 프레임워크를 출발점으로, <strong>런타임 엔진(DLL) · 게임플레이(DLL) · 실행 앱(EXE) · 자체 에디터(EXE)</strong>를
+    4개 모듈로 분리하고, 모델 파이프라인 · NavMesh/Scene/UI 저작 · 액션 전투 · Deferred 렌더링까지 확장한 C++ 포트폴리오 프로젝트입니다.
+    이 문서는 그 구조를 <strong>프레임워크 / 레벨 / 게임플레이 / 에디터 / 직렬화 / 총평</strong> 6개 축으로 정리한 코드 리뷰입니다.
+  </p>
+  <div class="badges">
+    <span class="badge">C++17</span>
+    <span class="badge">DirectX 11</span>
+    <span class="badge">HLSL · Deferred</span>
+    <span class="badge">Effects11</span>
+    <span class="badge">DirectXTK</span>
+    <span class="badge">FMOD</span>
+    <span class="badge">Assimp ·(Editor)</span>
+    <span class="badge">RTTR ·(Editor)</span>
+    <span class="badge">ImGui · ImGuizmo ·(Editor)</span>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="n">96</div><div class="l">commits · 14 feature 브랜치</div></div>
+    <div class="metric"><div class="n alt">~33K</div><div class="l">자체 C++ LOC (라이브러리 제외)</div></div>
+    <div class="metric"><div class="n alt2">4</div><div class="l">모듈 Engine·Client·App·Editor</div></div>
+    <div class="metric"><div class="n">119</div><div class="l">.cpp 소스 (61 / 42 / 16)</div></div>
+    <div class="metric"><div class="n alt">4</div><div class="l">버전형 바이너리 포맷</div></div>
+    <div class="metric"><div class="n alt2">8</div><div class="l">Editor 패널 + 5 Tool Mode</div></div>
+    <div class="metric"><div class="n">9</div><div class="l">HLSL 셰이더</div></div>
+    <div class="metric"><div class="n alt">8주</div><div class="l">2026.03.31 ~ 05.25</div></div>
+  </div>
+</header>
+
+<!-- ============ OVERVIEW ============ -->
+<section id="overview">
+  <h2><span class="ix">00</span> 한눈에 보는 프로젝트</h2>
+  <p class="deck">개별 기능의 개수보다 <strong>구조화</strong>가 중심인 프로젝트입니다. 런타임은 가볍고 안정적으로 유지하고, 외부 라이브러리와 저작 기능은 Editor에 격리했으며, Client는 GameApp과 Editor가 함께 호스팅하는 게임플레이 DLL로 두어 <strong>실제 실행과 에디터 검증이 같은 런타임 객체를 공유</strong>하도록 설계했습니다.</p>
+
+  <div class="grid3">
+    <div class="card">
+      <h4 style="margin-top:0">🧱 무엇을 만들었나</h4>
+      <p class="muted" style="font-size:14px">소드 액션 RPG의 핵심 루프 — 추적 카메라 이동, 콤보/가드/패리, 스킬 슬롯, 보스 AI, 광역 공격, HUD, 컷신 — 을 자체 엔진 위에 올렸습니다.</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">⚙️ 무엇에 집중했나</h4>
+      <p class="muted" style="font-size:14px">의존성 방향 단순화, 저작/소비 분리, 버전형 직렬화, 상태·데이터의 단일 소유(SSOT), 명시적 수명 관리.</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">📝 어떻게 기록했나</h4>
+      <p class="muted" style="font-size:14px"><code>명세서/</code>에 대안·선택 이유·보류 사유·구조적 함정을 Decision Log로 남기며 진행. 번복된 결정도 이유와 함께 보존.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="t">📐 설계 한 줄 요약</div>
+    <span class="muted"><b>Editor는 저작(authoring), Runtime은 소비(consume)</b> — Assimp/RTTR/ImGui/ImGuizmo는 전부 Editor에 격리되고, Engine/Client는 검증된 자체 바이너리 포맷만 읽습니다. 이 원칙이 모델·NavMesh·Scene·UI 전 영역으로 일관되게 이어집니다.</span>
+  </div>
+</section>
+
+<!-- ============ 1. FRAMEWORK ============ -->
+<section id="framework">
+  <h2><span class="ix">01</span> 프레임워크 아키텍처</h2>
+  <p class="deck">핵심 방향은 <strong>의존성의 방향을 단순하게 유지하는 것</strong>입니다. Client를 DLL로 만든 이유는 Editor에서 Client의 GameObject 프로토타입을 Clone해 쓰기 위함이며, 이 한 가지 결정이 전체 모듈 구조를 규정합니다.</p>
+
+  <h3>모듈 의존 구조</h3>
+  <div class="card" style="text-align:center">
+    <div class="flow" style="justify-content:center">
+      <div class="step" style="border-color:#46345e"><b>Editor.exe</b><span>저작 도구</span></div>
+      <div class="step" style="margin-left:14px;border-color:#2d4a6b"><b>GameApp.exe</b><span>순수 런타임</span></div>
+    </div>
+    <div style="color:var(--accent);font-size:20px;margin:2px 0">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ↓</div>
+    <div class="flow" style="justify-content:center">
+      <div class="step" style="border-color:#2b5347;min-width:240px"><b>Client.dll</b><span>Player · Monster · Camera · HUD · Level · StateMachine · Serializer</span></div>
+    </div>
+    <div style="color:var(--accent);font-size:20px;margin:2px 0">↓</div>
+    <div class="flow" style="justify-content:center">
+      <div class="step" style="min-width:240px"><b>Engine.dll</b><span>D3D11 · Renderer · Component · Model/Anim · Collision · NavMesh · Resource</span></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin-top:14px">Assimp · RTTR · ImGui · ImGuizmo ─┄(authoring only)┄→ <b style="color:var(--accent3)">Editor.exe 만</b> 의존</p>
+  </div>
+
+  <table class="tbl">
+    <tr><th>모듈</th><th>형태</th><th>책임</th></tr>
+    <tr><td><strong>Engine</strong></td><td><span class="tag">DLL</span></td><td>DirectX 11 device/context, renderer(Deferred+Shadow), component, model/animation loader, collision, navigation, resource lifetime</td></tr>
+    <tr><td><strong>Client</strong></td><td><span class="tag">DLL</span></td><td>Player, Monster/Boss, Camera, HUD, UI, Level, game state machine, gameplay serialization</td></tr>
+    <tr><td><strong>GameApp</strong></td><td><span class="tag b">EXE</span></td><td>순수 런타임 entry point. Editor 의존성 없이 Client+Engine만 사용. 60FPS 루프</td></tr>
+    <tr><td><strong>Editor</strong></td><td><span class="tag v">EXE</span></td><td>ImGui 기반 저작 도구. FBX 변환, Transform 조작, NavMesh/UI/Scene 편집. Client 런타임을 호스팅(Edit/Play)</td></tr>
+  </table>
+
+  <h3>업데이트 / 렌더 파이프라인</h3>
+  <div class="code">
+    <div class="bar"><span class="dot" style="background:#ff7b9c"></span><span class="dot" style="background:#ffb454"></span><span class="dot" style="background:#7ee0c0"></span><span class="fn">CGameInstance::Update_Engine → Begin/Draw/End_Draw</span></div>
+<pre><span class="c">// 매 프레임 — 결합도를 낮추기 위해 모두 GameInstance/매니저 경유</span>
+<span class="f">Input_Device::Update</span>        <span class="c">// Raw Input 2단계(static→frame), edge-trigger</span>
+  → <span class="f">Priority_Update</span>          <span class="c">// 카메라 등 우선순위 객체</span>
+  → <span class="f">Update</span>                   <span class="c">// 게임플레이 로직</span>
+  → <span class="f">PipeLine::Update</span>         <span class="c">// view/proj + 역행렬 캐시, Frustum</span>
+  → <span class="f">Late_Update</span>              <span class="c">// Add_RenderGroup 등록 + Collider 등록</span>
+  → <span class="f">Collision_Manager::Update</span> <span class="c">// 페어 검사 + Enter/Stay/Exit 콜백</span>
+  → <span class="f">Renderer::Draw</span>           <span class="c">// 아래 Deferred 순서</span>
+  → <span class="f">End_Frame</span>                <span class="c">// prev/curr 페어 swap, collider list clear</span></pre>
+  </div>
+
+  <h4>Deferred Shading 경로</h4>
+  <div class="flow">
+    <div class="step"><b>Priority</b><span>배경/스카이</span></div><div class="arr">→</div>
+    <div class="step" style="border-color:#46345e"><b>Shadow</b><span>LightDepth 4096</span></div><div class="arr">→</div>
+    <div class="step"><b>NonBlend</b><span>MRT: Diffuse/<br>Normal/Depth</span></div><div class="arr">→</div>
+    <div class="step" style="border-color:#2b5347"><b>Lights</b><span>MRT: Shade/<br>Specular</span></div><div class="arr">→</div>
+    <div class="step"><b>Combined</b><span>합성+Shadow</span></div><div class="arr">→</div>
+    <div class="step"><b>Blend</b><span>VFX</span></div><div class="arr">→</div>
+    <div class="step"><b>UI</b><span>HUD</span></div>
+  </div>
+  <p class="muted" style="font-size:13.5px">G-Buffer(<code>Target_Diffuse / Normal / Depth</code>) → 광원 누적(<code>Target_Shade / Specular</code>) → <code>Render_Combined</code>에서 light-depth 기반 그림자와 specular 마스킹을 합성합니다. <code>#ifdef _DEBUG</code>에서 각 RT를 디버그 뷰로 토글할 수 있습니다.</p>
+
+  <h3>설계 패턴 — 이름이 아니라 책임 경계를 위해</h3>
+  <table class="tbl">
+    <tr><th>패턴</th><th>적용 지점</th><th>의도</th></tr>
+    <tr><td><strong>Layered Architecture</strong></td><td>Engine / Client / GameApp / Editor</td><td>런타임 코어 · 게임 로직 · 실행 앱 · 저작 도구 책임 분리</td></tr>
+    <tr><td><strong>Facade / Service Locator</strong></td><td><code>CGameInstance</code> (singleton)</td><td>Renderer·Object·Pipeline·Collision·Light·Sound·Font 등 15개 서브시스템 접근 창구 통일</td></tr>
+    <tr><td><strong>Prototype + Clone</strong></td><td><code>Add_Prototype → Clone_Prototype</code></td><td>Editor와 GameApp이 같은 런타임 객체를 안전하게 생성</td></tr>
+    <tr><td><strong>Component</strong></td><td>Transform/Shader/Model/Collider/NavigationAgent</td><td>GameObject 기능을 조합 가능하게 분리</td></tr>
+    <tr><td><strong>Composite</strong></td><td><code>CContainerObject</code> / <code>CPartObject</code></td><td>Player=Body+Weapon+Socket+Hitbox처럼 다중 파츠를 하나의 캐릭터로</td></tr>
+    <tr><td><strong>State Machine</strong></td><td>Player / Monster action 전이</td><td>입력·애니 전이를 priority / auto-return / cooldown / reject로 제어</td></tr>
+    <tr><td><strong>Observer / Event</strong></td><td><code>INotifyListener</code>, AnimNotify</td><td>애니 키프레임 이벤트를 충돌·콤보·HUD로 전달</td></tr>
+    <tr><td><strong>Policy Table</strong></td><td>animation/action 정책 테이블</td><td>하드코딩 index 대신 의미 기반 action 매핑</td></tr>
+    <tr><td><strong>Serializer + Versioning</strong></td><td>SLMD / NavData / SceneData / UIScene</td><td>포맷 변화에 대응하는 magic+version+fallback 구조</td></tr>
+    <tr><td><strong>Manual Lifetime</strong></td><td><code>CBase</code> ref count + <code>Safe_AddRef/Release</code></td><td>DLL 경계와 D3D 리소스 수명을 명시적으로 통제</td></tr>
+  </table>
+
+  <div class="callout good">
+    <div class="t">SSOT — 상태와 데이터의 주인을 하나로</div>
+    <span class="muted">Transform = <code>m_WorldMatrix</code> · Loop/RootMotion/Notify = <code>.bin</code> · Action↔Anim 매핑 = Client 테이블 · NavMesh owner = NavMeshObject. 데이터가 여러 곳에 흩어지면 Editor와 Runtime이 동시에 깨지므로, 단일 소유를 정하고 나머지는 <b>조회·캐시</b>합니다(예: Inspector RTTR getter ↔ Gizmo가 매 프레임 <code>m_WorldMatrix</code> 폴링).</span>
+  </div>
+</section>
+
+<!-- ============ 2. LEVEL ============ -->
+<section id="level">
+  <h2><span class="ix">02</span> 레벨 디자인</h2>
+  <p class="deck">레벨은 <code>CLevel</code>(Engine 추상) ← <code>CLevel_GamePlay</code>(Client)로 구성되고, <code>CLevel_Manager::Change_Level</code>로 교체됩니다. 무거운 리소스는 <code>CLoader</code> 워커 스레드가 <code>CoInitializeEx</code> 후 프로토타입으로 미리 적재하고, 레벨은 그 프로토타입을 <strong>레이어 단위로 Clone·조립</strong>합니다.</p>
+
+  <h3>GamePlay 레벨 조립 순서 — <code>Initialize()</code></h3>
+  <p>레벨 초기화는 <strong>데이터 로드 → 조명 → 레이어 조립 → 충돌 규칙 → 트리거</strong>의 결정론적 순서를 따릅니다. 각 단계는 SceneData를 SSOT로 참조합니다.</p>
+  <div class="pipe">
+    <div class="row"><div class="h"><code>Ready_SceneData</code> — <code>.scene</code> 로드</div><div class="d">ThroneRoom.scene을 읽어 NavData 경로·SpawnPoint·Light·CamCollider 확보. 실패 시 기본값 폴백.</div></div>
+    <div class="row"><div class="h"><code>Ready_Lights</code> — 조명 + ShadowLight</div><div class="d">SceneData의 Light를 등록(없으면 기본 Directional+Point 생성). 그림자용 Spot light 행렬 등록.</div></div>
+    <div class="row"><div class="h"><code>Ready_Layer_NavMesh</code> — <code>.navdata</code> 스냅샷 로드</div><div class="d"><code>Load_NavDataSnapshot</code>으로 vertex/cell 복원 → neighbor 재계산. 이후 모든 스폰이 이 NavMesh를 참조.</div></div>
+    <div class="row"><div class="h"><code>Ready_Layer_Player</code> — SpawnPoint 기반 배치</div><div class="d">SceneData의 PLAYER SpawnPoint → 없으면 고정 cell index 폴백. NavMesh로 바닥 높이 보정.</div></div>
+    <div class="row"><div class="h"><code>Ready_Layer_Monster</code> — 데이터 주도 스폰</div><div class="d">SpawnPoint를 순회하며 type(Normal/Elite/Boss)별 프로토타입 Clone. Level·표시명·타깃(Player) 주입.</div></div>
+    <div class="row"><div class="h"><code>Ready_Layer_Camera</code> — Follow + Cinematic</div><div class="d">Player WorldMatrix 포인터를 카메라에 연결(추적), 컷신용 Cinematic 카메라를 비활성 상태로 동반 생성.</div></div>
+    <div class="row"><div class="h"><code>Ready_Layer_Effect</code> — Torch VFX</div><div class="d"><code>Torch_</code> 접두 PointLight 좌표만 모아 Atlas instance 불꽃 effect의 인스턴스 위치로 사용.</div></div>
+    <div class="row"><div class="h"><code>Ready_Layer_UI</code> — <code>HUD.uiscene</code> 로드</div><div class="d">UISceneLoader로 HUD 요소 배치 + <code>CHUD_GamePlay</code> 로직 객체 + DamageFont 인스턴서 추가.</div></div>
+    <div class="row"><div class="h"><code>Ready_CollisionGroup</code> + <code>Ready_PlayerTrigger</code></div><div class="d">충돌 group matrix 설정(아래 3장) + 컷신 트리거 상태 초기화 + 화면 Fade-in.</div></div>
+  </div>
+
+  <h3>레이어 구성</h3>
+  <div class="flow" style="flex-wrap:wrap">
+    <span class="tag b">Layer_BackGround</span><span class="tag b">Layer_NavMesh</span><span class="tag g">Layer_Player</span>
+    <span class="tag g">Layer_Monster</span><span class="tag">Layer_Camera</span><span class="tag v">Layer_Effect</span>
+    <span class="tag v">Layer_UI</span><span class="tag">Layer_CutSceneUI</span>
+  </div>
+  <p class="muted" style="font-size:14px">레벨은 직접 객체를 <code>new</code> 하지 않고 <code>Add_GameObject(protoLevel, protoTag, layerLevel, layerTag, &Desc)</code>로 프로토타입을 Clone합니다. <code>Find_*</code> 헬퍼들이 레이어를 순회해 Player·Boss·Camera 같은 런타임 참조를 동적으로 확보합니다(이른 dangling 회피).</p>
+
+  <h3>연출 — NavMesh 트리거 기반 컷신</h3>
+  <div class="card">
+    <div class="flow vert" style="font-family:var(--sans);font-size:14px">
+      <div class="step" style="font-family:var(--mono);align-items:flex-start;text-align:left;min-width:auto"><b>플레이어가 특정 NavMesh cell 진입</b><span>Update_PlayerTrigger가 매 프레임 cell index 비교</span></div>
+      <div class="arr">↓</div>
+      <div class="step" style="font-family:var(--mono);align-items:flex-start;text-align:left;min-width:auto"><b>비디오 컷신 재생 (VideoTexture mp4)</b><span>전용 UI_Video 객체 생성 + 컷신 BGM</span></div>
+      <div class="arr">↓</div>
+      <div class="step" style="font-family:var(--mono);align-items:flex-start;text-align:left;min-width:auto"><b>Fade-out → 플레이어 목표 cell 텔레포트</b><span>FadeOverlay_Helper 콜백 체인</span></div>
+      <div class="arr">↓</div>
+      <div class="step" style="font-family:var(--mono);align-items:flex-start;text-align:left;min-width:auto"><b>보스 인카운터 + Cinematic 카메라 인트로</b><span>본 pivot attach → Follow 카메라 복귀 → 전투 BGM</span></div>
+    </div>
+  </div>
+  <p class="muted" style="font-size:13.5px">컷신·인트로·인카운터가 상태 플래그(<code>m_bPlayerCutscenePlaying</code> 등)와 콜백으로 순차 진행되어, 레벨 코드 안에서 연출 흐름이 한눈에 추적됩니다.</p>
+</section>
+
+<!-- ============ 3. GAMEPLAY ============ -->
+<section id="gameplay">
+  <h2><span class="ix">03</span> 게임플레이 구현 <span style="font-size:14px;color:var(--dim);font-weight:500">— 기술 &amp; 설계</span></h2>
+  <p class="deck">전투 흐름은 <strong>입력 → 의도(Intent) → 상태머신 → 애니메이션 → Notify → 충돌 → HUD</strong>의 한 방향 사슬로 연결됩니다. 각 시스템이 서로를 직접 강하게 물지 않고, GameInstance·component·notify·state machine을 경유해 결합도를 낮춥니다.</p>
+
+  <h3>입력 파이프라인</h3>
+  <div class="flow">
+    <div class="step"><b>Input_Device</b><span>Raw Input<br>edge-trigger</span></div><div class="arr">→</div>
+    <div class="step"><b>Gather_RawInput</b><span>PLAYER_RAW_<br>INPUT_FRAME</span></div><div class="arr">→</div>
+    <div class="step" style="border-color:#2b5347"><b>IntentResolver</b><span>+ camera yaw<br>→ vMoveDirWorld</span></div><div class="arr">→</div>
+    <div class="step" style="border-color:#2d4a6b"><b>Player_StateMachine</b><span>LocoMotion/Combat/<br>Guard/Skills</span></div>
+  </div>
+  <p class="muted" style="font-size:13.5px">키 상태는 <code>PLAYER_RAW_INPUT_FRAME</code>로 수집되고, <code>CIntentResolver</code>가 카메라 Yaw를 적용해 <strong>월드 이동 방향 <code>vMoveDirWorld</code></strong>로 변환합니다(이동 의도의 SSOT). 상태머신은 raw 키가 아니라 정제된 Intent만 봅니다.</p>
+
+  <h3>상태머신 커널 — opaque <code>_uint</code> + Policy Table</h3>
+  <p>Engine의 <code>CStateMachine</code>은 <strong>의미를 모르는 추상 커널</strong>입니다. action을 불투명한 <code>_uint</code> 키로만 다루고, priority·auto-return·cooldown·reject 규칙만 강제합니다. Client의 <code>CPlayer_StateMachine</code>이 <code>CHARACTER_ACTION × STEP</code>을 그 키로 매핑합니다.</p>
+  <div class="code">
+    <div class="bar"><span class="dot" style="background:#ff7b9c"></span><span class="dot" style="background:#ffb454"></span><span class="dot" style="background:#7ee0c0"></span><span class="fn">Engine/StateMachine.cpp — Try_Transition (요지)</span></div>
+<pre><span class="k">if</span> (m_Rejects 에 (current→next) 존재)        <span class="k">return</span> <span class="k">false</span>;  <span class="c">// 명시적 거부쌍</span>
+<span class="k">if</span> (NextPolicy.iPriority &lt; CurrentPolicy.iPriority) <span class="k">return</span> <span class="k">false</span>;  <span class="c">// 낮은 우선순위 거부</span>
+<span class="k">if</span> (m_CooldownRemaining[next] &gt; <span class="n">0</span>.f)           <span class="k">return</span> <span class="k">false</span>;  <span class="c">// 쿨다운</span>
+<span class="c">// 통과 → 전이 + On_Transition(prev, next, bInitial) 발화</span>
+
+<span class="k">void</span> <span class="f">On_ActionFinished</span>() {            <span class="c">// 애니 종료(Notify) 시</span>
+   <span class="k">if</span> (pending) <span class="f">Try_Transition</span>(pending);   <span class="c">// 버퍼된 입력 우선 소비</span>
+   <span class="k">else if</span> (policy.bAutoReturn) <span class="f">Try_Transition</span>(policy.iReturnAction); <span class="c">// IDLE 복귀 등</span>
+}</pre>
+  </div>
+  <p class="muted" style="font-size:13.5px">정책은 <code>CHARACTER_ANIM_TABLE_DESC</code>(데이터 테이블)에서 일괄 등록됩니다. 덕분에 게임 코드는 "몇 번 애니 재생"이 아니라 <strong>"현재 상태에서 어떤 action을 시도"</strong>로 표현되고, 스킬 파라미터(반경·데미지·offset)까지 같은 테이블에 실립니다.</p>
+
+  <h3>Player — 전투/이동/스킬</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">이동 &amp; 콤보</h4>
+      <ul class="muted" style="font-size:13.5px;margin:0">
+        <li>IDLE / WALK / RUN / RUN_FAST / DASH / BACK_DASH + 카메라 Yaw 기준 회전속도 제한 보간(Style C)</li>
+        <li>Basic Attack 01·02·03 Early-Cancel + ComboWindow Notify + 0.18s 입력 버퍼</li>
+        <li>Root Motion: <code>Model</code>이 루트 본 delta를 추출 → <code>Apply_RootMotion</code>으로 NavMesh 보정 이동</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">방어 &amp; 스킬</h4>
+      <ul class="muted" style="font-size:13.5px;margin:0">
+        <li>Guard Start/Loop/End(Held) + RMB flicker 디바운스 + Parry 윈도우/반격</li>
+        <li>Weapon Swap(C, 쿨다운) · F/Q/E 스킬 슬롯 + 슬롯별 쿨다운 + 스킬 콜라이더</li>
+        <li>Dash charge(3) + 주기 재충전, 무적 프레임, QTE 윈도우(회피→반격 트리거)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>AnimNotify — 애니 타이밍과 게임플레이의 디커플링</h3>
+  <p>애니메이션 키프레임에 박힌 <code>ANIM_NOTIFY</code>가 <code>Animation::Tick_Notifies</code>(wrap-aware)에서 발화되어 <code>INotifyListener</code> 사슬을 타고 전달됩니다. 공격 판정을 "프레임 수"가 아니라 <strong>"애니가 여는 시점"</strong>으로 다루는 것이 핵심입니다.</p>
+  <div class="flow" style="flex-wrap:wrap">
+    <span class="tag">ATTACK_HITBOX_ON/OFF</span><span class="tag">COMBO_WINDOW_OPEN/CLOSE</span><span class="tag">FOOTSTEP_L/R</span>
+    <span class="tag">INVINCIBLE_ON/OFF</span><span class="tag">TRAIL_ON/OFF</span><span class="tag">DETECT_ON/OFF</span>
+  </div>
+  <p class="muted" style="font-size:13.5px"><code>Body → AnimController → Model → Animation</code>이 Notify를 listener에게 pass-through 하고, 상태머신/Player가 무기 OBB 활성화·콤보 윈도우·i-frame·트레일을 켜고 끕니다. <code>On_Transition</code>에 강제 OFF 안전망을 두어 윈도우 누수를 차단합니다.</p>
+
+  <h3>충돌 시스템 — Manager + Group Matrix</h3>
+  <p>오브젝트끼리 직접 검사하지 않습니다. Collider가 매 프레임 자신을 Manager에 등록(AddRef)하고, Manager가 <strong>group matrix로 허용된 쌍만</strong> 검사한 뒤 Enter/Stay/Exit 콜백을 보냅니다. 오브젝트는 "내 collider가 무엇을 맞았는가"만 처리합니다.</p>
+  <div class="code">
+    <div class="bar"><span class="dot" style="background:#ff7b9c"></span><span class="dot" style="background:#ffb454"></span><span class="dot" style="background:#7ee0c0"></span><span class="fn">Collision_Manager — prev/curr set diff로 상태 전이 도출</span></div>
+<pre><span class="c">// Late_Update: Add_Collider(group, collider)  ← 매 프레임 등록 + AddRef</span>
+<span class="c">// Update    : 허용 group 쌍 N² 검사 → m_CurrPairs 채움</span>
+m_CurrPairs - m_PrevPairs  → <span class="f">OnCollisionEnter</span>
+m_CurrPairs ∩ m_PrevPairs  → <span class="f">OnCollisionStay</span>
+m_PrevPairs - m_CurrPairs  → <span class="f">OnCollisionExit</span>   <span class="c">// 죽은 객체도 AddRef 유지로 안전 발화</span>
+<span class="c">// End_Frame : prev↔curr swap + collider list clear (Renderer와 동일 수명 패턴)</span>
+
+<span class="c">// 그룹: PLAYER_BODY · PLAYER_ATTACK · MONSTER_BODY · MONSTER_ATTACK · MAP_STATIC</span>
+Set_CollisionMatrix(PLAYER_ATTACK, MONSTER_BODY, <span class="k">true</span>);
+Set_CollisionMatrix(MONSTER_ATTACK, PLAYER_BODY, <span class="k">true</span>);</pre>
+  </div>
+
+  <h3>Monster / Boss AI</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">공통 Monster</h4>
+      <ul class="muted" style="font-size:13.5px;margin:0">
+        <li>거리 밴드(근 3.5 / 중 8 / 원 14) 기반 <code>Select_AIAction</code> + decision interval(0.5s)</li>
+        <li>HP + Break(스태거) 시스템 → Crash(다운) 상태 전이, <code>Force_Break</code></li>
+        <li>무기 OBB는 socket bone world matrix 기준 갱신, AnimNotify로 활성/비활성</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">Boss (Igris)</h4>
+      <ul class="muted" style="font-size:13.5px;margin:0">
+        <li>광역 공격(원/링) <strong>Telegraph 프리뷰</strong> + fill duration 후 데미지 적용</li>
+        <li>Slash Projectile · Dash 패턴(root motion 스케일) · 패턴별 쿨다운</li>
+        <li>Range band 압박 추적(근/원 반복 카운트)으로 패턴 편중 방지, post-crash 패턴 분기</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>HUD</h3>
+  <p class="muted" style="font-size:14px"><code>CHUD_GamePlay</code>가 <code>.uiscene</code>으로 배치된 UI 요소를 이름으로 캐싱한 뒤, HP/MP/Break/Dash/Skill/Combo/Crash/QTE/Quest 슬롯을 구동합니다. 체력바는 <strong>Lazy Bar</strong>(즉시 감소 + 지연 추격선)와 sweep pass로, 콤보는 rank 팝/디짓 바운스로 연출합니다. 데미지 폰트는 <code>DamageFont</code> 인스턴싱으로 월드→스크린 투영해 출력합니다.</p>
+</section>
+
+<!-- ============ 4. EDITOR ============ -->
+<section id="editor">
+  <h2><span class="ix">04</span> 에디터 구현 <span style="font-size:14px;color:var(--dim);font-weight:500">— 기술 &amp; 설계</span></h2>
+  <p class="deck">에디터의 설계 원칙은 단 하나, <strong>격리</strong>입니다. Assimp·RTTR·ImGui·ImGuizmo는 모두 Editor 전용이고 Engine/Client는 이들을 전혀 모릅니다. Engine 측 훅은 최소화하여, 예컨대 ImGuizmo 연동은 <code>CTransform::Set_WorldMatrix</code> 인라인 setter 한 줄로 끝납니다.</p>
+
+  <h3>ImGui 셸 + 패널 구조</h3>
+  <p><code>CPanel</code>(추상) ← 8개 패널, 모두 <code>CPanel_Manager</code>(singleton)가 관리합니다. 패널이 GameInstance/Manager를 <code>Safe_AddRef</code> 하며 생기는 <strong>순환 참조</strong>는 <code>Release_Panels()</code> 수동 해제(<code>EditorApp::Free</code>)로 끊습니다.</p>
+  <div class="flow" style="flex-wrap:wrap">
+    <span class="tag b">Viewport</span><span class="tag b">Hierarchy</span><span class="tag b">Inspector</span><span class="tag b">ContentBrowser</span>
+    <span class="tag">Log</span><span class="tag">Shortcuts</span><span class="tag v">NavMeshEditor</span><span class="tag v">2DCanvas</span>
+  </div>
+  <p class="muted" style="font-size:13px;margin-top:6px">Tool Mode: <span class="tag g">OBJECT</span><span class="tag g">NAVMESH</span><span class="tag g">UI_CANVAS</span><span class="tag g">LIGHT</span><span class="tag g">CAM_COLLIDER</span></p>
+
+  <table class="tbl">
+    <tr><th>패널 / 도구</th><th>기술 내용</th></tr>
+    <tr><td><strong>Viewport</strong></td><td>별도 RT(Tex2D+RTV+SRV+DSV) → Begin_RT/Draw/End_RT → BackBuffer 재바인딩 → ImGui → Present. 리사이즈 시 <code>GetContentRegionAvail()</code> 비교 후 RT 재생성</td></tr>
+    <tr><td><strong>Inspector</strong></td><td><strong>RTTR 리플렉션</strong> 기반 Transform property 편집 + Model 정보/애니 리스트/재생/루프 토글/<strong>Notify 저작 UI</strong> + Save Model 버튼</td></tr>
+    <tr><td><strong>Viewport Gizmo</strong></td><td><strong>ImGuizmo</strong> ↔ DirectX 행우선: <code>_float4x4*</code>를 <code>reinterpret_cast&lt;float*&gt;</code>로 그대로 전달(transpose 불필요). Inspector getter와 Gizmo가 매 프레임 <code>m_WorldMatrix</code> <strong>폴링 동기화</strong>(dirty 플래그 불필요)</td></tr>
+    <tr><td><strong>Model_Converter</strong></td><td><strong>Assimp</strong> aiScene → SLMD <code>.bin</code>. Collect_Bones(DFS, CModel과 동일 순서), Should_Skip_Mesh(LowMesh/NLOD 필터), 상대 텍스처 경로 빌드, 0-bone 폴백, DIFFUSE 누락 시 <code>_CO</code> 자동 탐색</td></tr>
+    <tr><td><strong>NavMeshEditorTool</strong></td><td>Picking + 스냅 + winding 보정으로 cell 저작, <strong>Undo/Redo 스냅샷 스택</strong>, SpawnPoint(Player/Monster) · SceneLight · Camera Collider face 저작, NavData/SceneData Save·Load</td></tr>
+    <tr><td><strong>2DCanvas / UICanvasTool</strong></td><td>UI element 배치/정렬/색상/sweep 저작 → <code>.uiscene</code> Save. 런타임 HUD와 동일 데이터 공유</td></tr>
+  </table>
+
+  <h3>Editor = 게임 호스트</h3>
+  <p class="muted" style="font-size:14px">에디터는 별도 더미 씬이 아니라 <strong>Client 런타임을 직접 호스팅</strong>합니다(Edit/Play 토글). 같은 프로토타입을 Clone 해 같은 GameObject를 띄우므로, 에디터에서 보는 것과 GameApp 실행 결과가 동일한 런타임 객체입니다. Client 게임 레벨은 CLIENT_DLL export가 없어, Editor 전용 빈 셸 <code>CLevel_Editor</code> + <code>Ready_TestScene()</code>로 대체합니다.</p>
+
+  <div class="callout">
+    <div class="t">🔌 폴링 기반 동기화의 선택</div>
+    <span class="muted">Inspector(RTTR getter)와 Gizmo가 각각 매 프레임 <code>m_WorldMatrix</code>를 폴링하므로, dirty 플래그나 이벤트 버스가 필요 없습니다. SSOT 하나만 정확하면 양방향 동기화가 자동으로 맞춰지는, <b>"상태는 하나, 표현은 폴링"</b> 전략입니다.</span>
+  </div>
+</section>
+
+<!-- ============ 5. SERIALIZATION ============ -->
+<section id="io">
+  <h2><span class="ix">05</span> 파일 저장 &amp; 로드 관리 <span style="font-size:14px;color:var(--dim);font-weight:500">— 언제 / 어떻게</span></h2>
+  <p class="deck">네 종류의 자체 바이너리 포맷이 있고, 모두 동일한 규약을 따릅니다: <strong>magic(4byte) + version + body</strong>, 공유 <code>CBinaryWriter/CBinaryReader</code>, 그리고 <strong>version 분기 + 누락 필드 fallback</strong>. 저장은 항상 Editor(저작), 로드는 항상 Runtime(소비) 시점입니다.</p>
+
+  <h3>포맷 한눈에 — 누가 / 언제 저장하고 / 언제 로드하나</h3>
+  <table class="tbl">
+    <tr><th>포맷</th><th>Magic / Ver</th><th>담는 것</th><th>저장 시점 (Editor)</th><th>로드 시점 (Runtime)</th></tr>
+    <tr>
+      <td><strong>SLMD</strong><br><code>.bin</code></td><td><code>—</code> / v1→v3</td>
+      <td>Mesh · Material · Bone · Animation · per-anim Loop/RootMotion · PreTransform · <strong>AnimNotify[]</strong></td>
+      <td>FBX 우클릭 변환(<code>Model_Converter</code>) · Inspector <em>Save Model</em>(Notify 편집 후)</td>
+      <td><code>CLoader</code> 워커 스레드에서 <code>CModel::Create(binPath)</code> → 프로토타입 등록</td>
+    </tr>
+    <tr>
+      <td><strong>NavData</strong><br><code>.navdata</code></td><td><code>SLNM</code></td>
+      <td>NavMesh vertex / cell. neighbor는 <strong>로드 후 재계산</strong></td>
+      <td>NavMeshEditor <em>Save NavData</em> 버튼 → <code>Save_NavDataSnapshot</code></td>
+      <td><code>Ready_Layer_NavMesh</code>에서 <code>Load_NavDataSnapshot</code> → Restore</td>
+    </tr>
+    <tr>
+      <td><strong>SceneData</strong><br><code>.scene</code></td><td><code>SLSC</code> / v1→v5</td>
+      <td>NavData 경로 · SpawnPoint[] · SceneLight[] · CamCollider(vtx/face)</td>
+      <td>NavMeshEditor <em>Save Scene</em> 버튼 → <code>CSceneSerializer::Save</code></td>
+      <td>레벨 <code>Ready_SceneData</code>(가장 먼저) — 스폰·조명·카메라의 입력</td>
+    </tr>
+    <tr>
+      <td><strong>UIScene</strong><br><code>.uiscene</code></td><td><code>SLUI</code> / v1→v7</td>
+      <td>UI element 배치 · 텍스처/Proto tag · 정렬 · 색상 · sweep mode · atlas</td>
+      <td>2DCanvas <em>Save</em> 버튼 → <code>CUISceneSerializer::Save</code></td>
+      <td><code>Ready_Layer_UI</code>에서 <code>UISceneLoader::Load_Into_Layer</code></td>
+    </tr>
+  </table>
+
+  <h3>저장 / 로드 타임라인</h3>
+  <div class="split">
+    <div class="col card" style="border-left:3px solid var(--accent3)">
+      <h4>✍️ 저작 시점 — Editor (명시적 Save)</h4>
+      <p class="muted" style="font-size:13.5px">저장은 항상 <strong>사용자가 버튼을 눌렀을 때</strong> 일어납니다. 자동 저장·암묵 저장이 없어, 무엇이 언제 디스크에 박히는지 추적이 쉽습니다.</p>
+      <ul class="muted" style="font-size:13px">
+        <li><code>Panel_Inspector</code> → <code>pModel->Save_Binary()</code></li>
+        <li><code>Panel_NavMeshEditor</code> → <code>Save_NavData()</code> / <code>Save_SceneData()</code></li>
+        <li><code>Panel_2DCanvas</code> → <code>UICanvasTool::Save()</code></li>
+      </ul>
+    </div>
+    <div class="col card" style="border-left:3px solid var(--accent2)">
+      <h4>▶️ 소비 시점 — Runtime (레벨 진입)</h4>
+      <p class="muted" style="font-size:13.5px">로드는 <strong>레벨 초기화와 로더 스레드</strong>의 정해진 순서에서만 일어납니다. 모델은 스레드에서 선적재, 데이터(scene/nav/ui)는 레벨 조립 중 로드.</p>
+      <ul class="muted" style="font-size:13px">
+        <li>모델: <code>CLoader::Loading()</code> (워커 스레드, <code>CoInitializeEx</code>)</li>
+        <li>Scene/Nav: <code>Level_GamePlay::Initialize</code> 초반</li>
+        <li>UI: <code>Ready_Layer_UI</code> (레벨 조립 후반)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>버전 호환의 실제 코드 — 깨지 않고 늘리기</h3>
+  <p>포맷이 자랄 때 옛 데이터를 버리지 않는 것이 이 파이프라인의 약속입니다. 읽기 시 <code>iVersion</code>으로 분기하고, 신규 필드는 옛 버전에서 <strong>안전한 기본값으로 폴백</strong>합니다. (예: UIScene v7에서 추가된 sweep mode)</p>
+  <div class="code">
+    <div class="bar"><span class="dot" style="background:#ff7b9c"></span><span class="dot" style="background:#ffb454"></span><span class="dot" style="background:#7ee0c0"></span><span class="fn">UISceneSerializer::Read_Element — version 분기 + fallback</span></div>
+<pre><span class="k">if</span> (iVersion &gt;= <span class="n">6</span>) Reader.Read(&amp;pOutElement-&gt;vColor);
+<span class="k">else</span>             pOutElement-&gt;vColor = {<span class="n">1</span>,<span class="n">1</span>,<span class="n">1</span>,<span class="n">1</span>};      <span class="c">// 구버전: 흰색 폴백</span>
+
+<span class="k">if</span> (iVersion &gt;= <span class="n">7</span>) {
+    Reader.Read(&amp;iSweepMode);
+    <span class="k">if</span> (iSweepMode &gt;= END) iSweepMode = <span class="n">0</span>;     <span class="c">// 방어적 클램프</span>
+    pOutElement-&gt;eSweepMode = (UI_SWEEP_MODE)iSweepMode;
+} <span class="k">else</span> pOutElement-&gt;eSweepMode = NONE;            <span class="c">// 구버전: NONE 폴백</span></pre>
+  </div>
+  <div class="callout good">
+    <div class="t">왜 JSON이 아니라 바이너리인가</div>
+    <span class="muted">저작 단계의 가독성은 Editor UI가 책임지고, 런타임은 <b>크기·파싱 속도·의존성 0</b>의 자체 바이너리만 읽습니다. magic으로 포맷 오인을 막고, version으로 진화를 허용하며, fixed-size <code>WriteArray</code>로 문자열 필드를 단순화했습니다. "편집은 도구가, 적재는 포맷이" — 1장의 저작/소비 분리 원칙이 직렬화 레이어에서도 그대로 반복됩니다.</span>
+  </div>
+</section>
+
+<!-- ============ 6. REVIEW ============ -->
+<section id="review">
+  <h2><span class="ix">06</span> 코드 리뷰 &amp; 총평</h2>
+  <p class="deck">8주 · 96 커밋 · 약 33,000 LOC의 솔로 프로젝트로서, "기능 개수"가 아니라 "구조가 감당 가능한 순서로 자랐는가"를 기준으로 평가합니다.</p>
+
+  <h3>강점</h3>
+  <div class="grid2">
+    <div class="card">
+      <ul class="chk muted" style="font-size:14px;margin:0">
+        <li><strong>일관된 의존성 방향</strong> — 외부 라이브러리를 Editor에 완전 격리. Engine/Client는 자체 포맷만 소비.</li>
+        <li><strong>통일된 직렬화 규약</strong> — 4개 포맷이 magic+version+fallback을 공유. 데이터 파이프라인의 성숙도가 드러남.</li>
+        <li><strong>SSOT 규율</strong> — Transform·Loop·Notify·NavMesh owner의 단일 소유를 정하고 나머지는 폴링/캐시.</li>
+        <li><strong>추상 상태머신 커널</strong> — Engine은 opaque <code>_uint</code>만, Client가 의미를 매핑. 정책은 데이터 테이블.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <ul class="chk muted" style="font-size:14px;margin:0">
+        <li><strong>이벤트 기반 전투</strong> — AnimNotify가 판정 타이밍을 열고 닫아 애니/게임플레이 디커플링.</li>
+        <li><strong>충돌 매니저화</strong> — group matrix + prev/curr set diff로 Enter/Stay/Exit를 안전하게 도출.</li>
+        <li><strong>명시적 수명 관리</strong> — <code>CBase</code> ref count와 문서화된 함정(Clone SRV AddRef 등)으로 D3D/DLL 경계 통제.</li>
+        <li><strong>Decision Log 문화</strong> — 번복된 결정까지 이유와 함께 보존해 추적성 확보.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>개선 여지 (건설적)</h3>
+  <div class="grid2">
+    <div class="card" style="border-left:3px solid var(--warn)">
+      <ul class="imp muted" style="font-size:13.5px;margin:0">
+        <li><strong>God-object 경향</strong> — <code>CPlayer</code>가 이동·전투·스킬·무기·QTE·텔레포트·바디블록 해소·콜라이더까지 ~50 멤버/~60 메서드를 보유. <code>CHUD_GamePlay</code>도 동일. Combat/Loadout/Skill 컴포넌트로 분리 여지.</li>
+        <li><strong>Facade 표면적</strong> — <code>CGameInstance</code>가 15개 서브시스템·~100 메서드를 노출. 편리하지만 변경 파급면이 넓음.</li>
+        <li><strong>충돌 broadphase 부재</strong> — group 쌍 N² 검사. 현재 규모(1 Player + 소수 Monster)에선 충분하나 확장 시 공간 분할 필요.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-left:3px solid var(--warn)">
+      <ul class="imp muted" style="font-size:13.5px;margin:0">
+        <li><strong>매직 넘버 / 하드코딩 튜닝</strong> — cell index(40, 트리거 cell), 다수의 튜닝 float이 헤더 상수로 산재. 일부는 SceneData로 데이터화 가능.</li>
+        <li><strong><code>dynamic_cast</code> 다용</strong> — <code>Find_FirstPlayer/Boss</code>가 매 트리거 프레임 레이어 순회+캐스팅. 캐싱 여지.</li>
+        <li><strong>인코딩 혼재</strong> — 주석이 CP949/UTF-8 혼용으로 깨짐(문서화된 이슈지만 유지보수 냄새). <strong>자동화 테스트 부재</strong>(솔로 게임플레이 특성상 수동 검증).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>구조 성숙도 (주관적 셀프 스코어)</h3>
+  <div class="card">
+    <div class="scorerow"><div class="lbl">모듈 분리 / 격리</div><div class="bar-bg"><div class="bar-fill" style="width:92%"></div></div><div class="val">9.2</div></div>
+    <div class="scorerow"><div class="lbl">데이터 파이프라인</div><div class="bar-bg"><div class="bar-fill" style="width:90%"></div></div><div class="val">9.0</div></div>
+    <div class="scorerow"><div class="lbl">상태/이벤트 설계</div><div class="bar-bg"><div class="bar-fill" style="width:86%"></div></div><div class="val">8.6</div></div>
+    <div class="scorerow"><div class="lbl">렌더링 파이프라인</div><div class="bar-bg"><div class="bar-fill" style="width:80%"></div></div><div class="val">8.0</div></div>
+    <div class="scorerow"><div class="lbl">클래스 응집도 / SRP</div><div class="bar-bg"><div class="bar-fill" style="width:68%"></div></div><div class="val">6.8</div></div>
+    <div class="scorerow"><div class="lbl">테스트 / 자동 검증</div><div class="bar-bg"><div class="bar-fill" style="width:45%"></div></div><div class="val">4.5</div></div>
+  </div>
+
+  <h3>총평</h3>
+  <div class="callout">
+    <div class="t">한 문단 정리</div>
+    <span class="muted">이 프로젝트의 진짜 성과는 화려한 단일 기능이 아니라 <strong>"제작 루프가 도는 구조"</strong>를 만든 것입니다. Editor가 데이터를 만들고 버전형 바이너리로 저장하면, 같은 런타임 객체를 GameApp이 소비합니다 — 모델·NavMesh·Scene·UI 전 영역에서 이 한 가지 패턴이 반복됩니다. 상태머신은 의미를 모르는 커널로 추상화되고, 전투는 AnimNotify 이벤트로 디커플링되며, 수명은 명시적으로 통제됩니다. 남은 과제는 <strong>거대해진 게임플레이 클래스를 컴포넌트로 쪼개고, 매직 넘버를 데이터로 끌어내며, 검증을 자동화</strong>하는 것입니다. 즉 다음 단계는 새 기능이 아니라 <strong>이미 검증된 구조의 응집도를 높이는 리팩토링</strong>입니다.</span>
+  </div>
+
+  <div class="callout good">
+    <div class="t">포트폴리오 화법 한 줄</div>
+    <span class="muted">"게임 하나를 만든 것이 아니라, <b>게임을 만들기 위한 프레임워크와 저작 파이프라인을 직접 확장</b>했고, 그 모든 결정의 이유를 기록으로 남겼습니다."</span>
+  </div>
+</section>
+
+<footer>
+  <p><strong>Solo Leveling</strong> — DirectX 11 Action RPG Framework &amp; Custom Editor · 코드 리뷰 문서</p>
+  <p>생성: 명세서/포트폴리오_코드리뷰.html · 기준 시점 2026.05.25 (96 commits) · 본 문서는 코드베이스 정적 분석 기반 자체 정리본입니다.</p>
+  <p style="color:#566; font-size:12px">자산 고지: 캐릭터·무기·맵 등 일부 리소스는 <em>Solo Leveling: OverDrive</em> 자산을 학습/포트폴리오 목적으로 사용했으며, 상업적 배포 목적이 아닙니다.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+  // active TOC highlight via IntersectionObserver
+  (function(){
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var map = {};
+    links.forEach(function(a){ var id=a.getAttribute('href').slice(1); map[id]=a; });
+    var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(l){l.classList.remove('active');});
+          var a = map[e.target.id];
+          if(a) a.classList.add('active');
+        }
+      });
+    }, {rootMargin:'-20% 0px -70% 0px', threshold:0});
+    sections.forEach(function(s){ obs.observe(s); });
+  })();
+</script>
+</body>
+</html>

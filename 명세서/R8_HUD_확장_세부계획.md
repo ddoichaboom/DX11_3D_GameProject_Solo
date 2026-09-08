@@ -179,38 +179,75 @@ else                         { if (In.vTexcoord.y < 1.f - g_fGaugeProgress) disc
 
 ---
 
-## 5. R8-C — 콤보 시스템 (우측 상단, 퀘스트 아래)
+## 5. R8-C — 콤보 시스템 (우측 상단, 퀘스트 아래) — 확정 설계 2026-05-25
 
-### 5.1 로직 (소유: CHUD_GamePlay 또는 신규 CCombo_Manager)
+### 5.0 핵심 결정 (사용자 확정)
 
-- 타격 발생 시 `m_iComboCount++`, `m_fComboDecayTimer = COMBO_DECAY`(예 3.0s) 리셋
-- 매 프레임 `m_fComboDecayTimer -= dt`; 0 도달 시 콤보 **감소/리셋**
-- 등급 산정: 타격수 구간 → D/C/B/A/S/SS/SSS (임계값 튜닝, 예: 0~4 D / 5~9 C / 10~19 B / 20~34 A / 35~54 S / 55~79 SS / 80+ SSS)
-- 트리거 진입점: `Notify_Hit`(몬스터 피격) 또는 플레이어 공격 적중 콜백. 기존 `Notify_Hit(CMonster*)` 재활용 검토
+| 항목 | 결정 |
+|---|---|
+| 숫자 표현 | **Atlas 자릿수** (등급=`Atlas_ComboFont`, 숫자=`Atlas_DamageFont` 자릿수별 `CUI_SpriteAnim`) |
+| 등급 체감 | **임계값 낮게** — 빠르게 등급이 오르는 느낌 (D:1 C:3 B:5 A:8 S:12 SS:18 SSS:25) |
+| 등급 전환 | **팝업**: 이전 등급 즉시 사라짐 → Center에서 작게→오버슈트→정착 (scale pop-in) |
+| 디케이 | **점진 감소**: 마지막 타격 후 여유, 이후 **2초마다 등급 1단계씩** 하락 |
 
-### 5.2 표현
+### 5.1 카운트 진입점 (확정)
 
-- 등급: `Atlas_ComboFont` 7프레임 → 등급 인덱스로 UV 프레임 선택
-- 타격수: `Atlas_DamageFont` 숫자 → 자릿수별 인스턴스 (RectInstance) 또는 UI 자릿수 배치
+`Notify_Hit(CMonster*)` 는 **플레이어→몬스터**(Monster.cpp:104 Take_Damage 끝)와 **몬스터→플레이어**(Monster.cpp:528 무기 적중) **양쪽**에서 호출되는 "최근 활동 몬스터" 일반화 함수. 여기에 콤보를 넣으면 *몬스터가 플레이어를 때려도 콤보가 오르는 버그*. → **별도 진입점 `Notify_ComboHit()` 신설**, `CMonster::Take_Damage` 의 `if (HP<=0) return;` 가드 **직후**(살아있는 몬스터 = 플레이어 적중)에서만 호출.
+
+### 5.2 로직 (CHUD_GamePlay 직접 소유, 별도 Manager 불필요)
+
+- 멤버: `_int m_iComboCount` / `_int m_iComboRank(-1)` / `_float m_fComboDecayTimer` / `_float m_fRankPopTimer`
+- 상수: `COMBO_DECAY_STEP=2.0f`, `RANK_POP_DURATION=0.28f`, `RANK_POP_SCALE_MAX=1.35f`
+- 임계값(cpp static): `s_ComboRankThreshold[7] = {1,3,5,8,12,18,25}`. `Combo_RankFromCount()` = 가장 큰 임계값≤count 의 인덱스(없으면 -1)
+- `Notify_ComboHit`: `++m_iComboCount; m_fComboDecayTimer = COMBO_DECAY_STEP;`
+- `Tick_Combo(dt)`:
+  1. 디케이: count>0 시 `m_fComboDecayTimer -= dt`. 0 도달 → 현재등급 한 단계 ↓ (`count = threshold[rank-1]`, rank≤0이면 count=0 종료), 타이머 재설정 → **2초마다 한 칸**
+  2. 등급 재산정 → 변경 시 `Set_Frame(rank)` + `m_fRankPopTimer = RANK_POP_DURATION`
+  3. 표시 토글(`bShow = rank>=0 && count>0`) + 등급 팝 scale(p<0.45 작게→1.35 / 그후 →1.0, **Set_Size로 center 고정 확대**) + 숫자 우측정렬 자릿수(`Set_Frame(val%10)`)
+
+### 5.3 표현 (UI = CUI_SpriteAnim 재사용, 신규 셰이더 0)
+
+- `CUI_SpriteAnim` 이 `iAtlasCols/Rows` + `Set_Frame(idx)` 제공 → 특정 프레임 정지(저작 시 `fFrameDuration=9999`로 자동진행 차단). SpriteAnimPass(pass2, `g_vUVOffsetScale`) 그대로.
+- 등급: `Atlas_ComboFont` **7×1** (0=D 1=C 2=B 3=A 4=S 5=SS 6=SSS, 색상 내장)
+- 숫자: **`Atlas_DamageFont_BG_NONE`** **10×1** (0~9, **투명배경+외곽선**). ⚠️ UI 알파블렌드 pass 라 `BG_Black`(검정배경) 쓰면 검은 사각형이 보임 → UI 용은 **BG_NONE**. (R8-D 데미지폰트는 RectInstance 검정키 discard 라 BG_Black — 서로 다름)
+- 캐싱: `m_pUI` 배열(CUI_Image*) 대신 **별도 멤버**(`m_pComboRank`, `m_pComboDigit[3]`) + `dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(...))` — `HUD_SLOT` enum 미변경(회귀 0). `m_pQuestText`/`m_pSkillKeyText` 와 동일 패턴
+- Loader 등록: `Prototype_Component_Texture_HUD_Combo_Rank`(Atlas_ComboFont), `..._Combo_Digit`(Atlas_DamageFont_BG_NONE)
 
 ---
 
-## 6. R8-D — 데미지 폰트 (월드 빌보드)
+## 6. R8-D — 데미지 폰트 (월드 빌보드) — 확정 설계 2026-05-26
 
-### 6.1 요구
+### 6.0 핵심 결정 (사용자 확정)
 
-- 피격 시 대상 `GameObject` Transform 중심, 반경 `R` Sphere **외곽 정점 중 랜덤 위치**에 데미지 숫자 1회 스폰 → 짧게 떠오르며 fade
-- `CAtlasInstanceEffect`(RectInstance) 재사용. `Atlas_DamageFont_BG_Black`
+| 항목 | 결정 |
+|---|---|
+| 비주얼 | **불투명 흰 숫자** = `Atlas_DamageFont_BG_NONE`(투명배경+외곽선) + 기존 **pass0**(alpha discard, AlphaBlend). 셰이더 수정 0 |
+| 구조 | **신규 `CDamageFont`** 단일 GameObject(HUD 식 `s_pInstance`) 가 떠다니는 데미지를 **인스턴스 풀**로 관리. `CAtlasInstanceEffect` 확장 안 함(단일프레임·수명없음 전제라 부적합) |
+| Engine 확장 | `CVIBuffer_Rect_Instance::Update_Billboard` 에 **per-instance `TexInfos`/`Colors` 배열 오버로드** 추가(기존 단일 버전 유지=회귀 0). 셰이더 `vTexInfo`/`vColor` 는 이미 per-instance(TEXCOORD5/6) |
 
-### 6.2 인프라 갭 (R8-D 진입 시 해결)
+### 6.1 인프라 사실 (확인됨)
 
-- 현재 `CAtlasInstanceEffect` 는 **전역 단일 프레임**(`m_iCurFrame`)을 모든 인스턴스 공유 → 다자리 숫자("123") 표현 불가
-- 필요: **인스턴스별 atlas frame 지정** (자릿수별 다른 숫자) — Desc/VIBuffer 확장 또는 데미지 전용 분기
-- Sphere 외곽 랜덤: `중심 + R * normalize(rand_dir)` (구 표면 균등 샘플) 한 점 → 그 위치에 자릿수 가로 배치
+- 셰이더 `Shader_VtxRectInstance.hlsl` `VS_IN` 의 `vTexInfo:TEXCOORD5`, `vColor:TEXCOORD6` 는 **per-instance 입력**. `Out.vTexcoord = In.vTexcoord * vTexInfo.zw + vTexInfo.xy` → 인스턴스마다 다른 UV 프레임 가능.
+- `CVIBuffer_Rect_Instance::Set_Instances(vector<VTXRECT_INSTANCE>)` 로 인스턴스 데이터 직접 주입 가능. `Update_Billboard` 는 단일 `vTexInfo`/`vColor` 를 전 인스턴스에 복사하는 편의함수일 뿐 → **"갭"은 API 한 겹**.
 
-### 6.3 호출처
+### 6.2 CDamageFont 설계
 
-- `CMonster::Take_Damage` / `CPlayer::Take_Damage` 끝에서 스폰 요청 (기존 `CHUD_GamePlay::Notify_Hit` 경로 인접)
+- 멤버 `vector<DAMAGE_ENTRY>` `{_float3 vBasePos, _int iValue, _float fAge, _float fLifetime}`
+- `Spawn(vWorldCenter, iValue)`: Sphere 외곽 랜덤(상향 바이어스) → `vBasePos = center + dir*R`. iValue≤0 무시
+- `Update(dt)`: 각 entry `fAge += dt`, `fAge≥fLifetime` 제거
+- `Late_Update`: entry 있으면 `Add_RenderGroup(BLEND, this)`
+- `Render`: 카메라 `right`(ViewInverse.r[0]) 기준 각 entry 의 자릿수를 가로 배치 →
+  - 떠오름 `pos.y += RISE_SPEED*age`, fade `alpha = 1-age/life`
+  - 자릿수 k: `pos = center_risen + right*((k-(n-1)/2)*SPACING)`, `TexInfo=(d*0.1, 0, 0.1, 1)`(cols=10), `Color=(1,1,1,alpha)`
+  - 모든 자릿수 모아 `Update_Billboard(Positions, DIGIT_SIZE, TexInfos, Colors, View)` → Begin(0)
+- 상수(튜닝): `LIFETIME≈0.9s`, `RISE_SPEED≈1.2`, `SPHERE_RADIUS≈0.5`, `DIGIT_SIZE≈(0.35,0.5)`, `SPACING≈0.32`, `MAX_INSTANCES=256`
+- 텍스처 = `Prototype_Component_Texture_HUD_Combo_Digit`(BG_NONE, R8-C 와 동일 자산 재사용), cols=10 rows=1
+
+### 6.3 배치/호출처
+
+- Loader 에 `Prototype_GameObject_DamageFont` 등록(GAMEPLAY). `CLevel_GamePlay` 가 Layer(Effect/UI)에 1개 Clone → `Initialize` 에서 `s_pInstance=this`
+- `CMonster::Take_Damage` / `CPlayer::Take_Damage` 에서 **실제 피해량**으로 `CDamageFont::Get_Instance()->Spawn(몬스터/플레이어 월드중심, (int)fHPDamage)`
+- 신규 파일 `CDamageFont.{h,cpp}` → **vcxproj 추가 필요**(Client)
 
 ---
 
@@ -331,6 +368,68 @@ PS_UI 에 `g_fGaugeVertical` lerp 분기를 넣었다가 두 문제 발생: ① 
 **Shadow (사용자 작업, 동시 진행)**: Renderer 에 `Target_LightDepth`/`MRT_ShadowObjects`/`Render_Shadow()` + `RENDERID::SHADOW/NONLIGHT` + `Shadow.{h,cpp}` + `DEFERRED::COMBINED_LIGHT_DEPTH` + Shader_Deferred 확장.
 
 **진행 상태**: R8-A(스킬5슬롯) / R8-B(퀘스트) 코드+저작 완료. **다음 = R8-C(콤보), R8-D(데미지 폰트)**.
+
+### 2026-05-26 — R8-C 콤보 시스템 코드 적용 (빌드 성공, uiscene 저작 대기)
+
+확정 설계(§5) 그대로 적용 + 빌드 성공.
+
+- **카운트 진입점**: `Notify_ComboHit()` 신설(`HUD_GamePlay.h/.cpp`). `Notify_Hit`(양방향 "최근 활동 몬스터")와 분리 — `CMonster::Take_Damage` 의 `if(HP<=0) return;` **직후**에서만 호출(살아있는 몬스터 피격=플레이어 적중). 몬스터→플레이어 공격으로 콤보 오르는 버그 회피.
+- **로직**: `Tick_Combo(dt)` (Update 에서 `Tick_Skills` 다음 호출). 디케이=2초마다 등급 1단계↓(`count=COMBO_THRESHOLD[rank-1]`, D 밑이면 0 종료). 등급 변경 시 `Set_Frame(rank)` + 팝업 타이머. 팝 scale(p<0.45 작게0.2→1.35 / 그후→1.0, `Set_Size` center 고정). 숫자 우측정렬 자릿수 `Set_Frame(val%10)`.
+- **UI**: `CUI_SpriteAnim` 재사용(신규 셰이더 0). 별도 멤버(`m_pComboRank`, `m_pComboDigit[3]`) + `dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(...))` 캐싱 → **`HUD_SLOT` enum 미변경(회귀 0)**.
+- **등급 임계값**: 헤더 멤버 `static constexpr _int COMBO_THRESHOLD[7]={1,3,5,8,12,18,25}` (C++17 inline). ⚠️ 초안의 TU-scope `static s_ComboRankThreshold` 는 정의 순서 의존으로 "미정의" 컴파일 에러 → 헤더 멤버 상수로 이전(순서 무관).
+- **자산**: Loader 에 `Combo_Rank`(Atlas_ComboFont 7칸), `Combo_Digit`(**Atlas_DamageFont_BG_NONE** 10칸) 등록. UI 알파블렌드 pass 라 숫자는 **투명배경 BG_NONE**(BG_Black 은 검은 사각형 보임 — R8-D RectInstance 전용).
+
+**진행 상태(갱신)**: R8-A/B 완료. R8-C 코드 완료(빌드 성공) — **uiscene 콤보 UI 4개(§11) 저작 후 실행 검증 대기**. 다음 = R8-D(데미지 폰트).
+
+### 2026-05-26 — R8-C 콤보 완료 + HITS/바운스 연출 추가
+
+- 사용자 디자인 변경: 숫자(Atlas) + **"HITS" 텍스트** + 타격 바운스(숫자 왼쪽/HITS 오른쪽, 0.15s 복귀). 등급은 기존 Center 팝업 유지.
+- `CUI_Text::Set_Center/Get_CenterX/Y` 신설(Engine 무영향, Client만). `Notify_ComboHit` 에 `m_fComboHitBounce` 트리거. `Tick_Combo` 에 바운스 오프셋(`DIGIT_BOUNCE_X=4`, `HITS_BOUNCE_X=14`) 적용.
+- uiscene 5개 저작(§11) 완료 → **실행 정상 동작 확인(사용자)**. R8-C 종결.
+- **다음 = R8-D(데미지 폰트, 월드 빌보드) 진입**.
+
+### 2026-05-26 — CRASH HUD/Atlas 연출 추가 (Codex 세션: FMOD_SOUND_MANAGER 후속)
+
+몬스터 CRASH 진입 시 표시되는 CRASH 화면 연출을 1차 구현했다. 이 항목은 R8 정규 A~D 범위 밖의 전투 HUD/VFX 후속 작업이지만, HUD_GamePlay 와 AtlasInstanceEffect 를 함께 사용하므로 본 문서에 기록한다.
+
+- **트리거 위치 수정**: 기존 `CBoss_Monster::Update()` 프레임 경계 감지(`bCrashBefore -> bCrashNow`)는 CRASH 전환이 데미지/브레이크 처리 중 먼저 발생하면 놓칠 수 있음. `CMonster::Handle_ActionTransition()` 의 `MONSTER_ACTION::CRASH` 진입 훅에서 `CHUD_GamePlay::Notify_Crash()` 호출하도록 변경. 보스 전용 Update 중복 호출은 제거.
+- **UI 레이어**: `CHUD_GamePlay::Notify_Crash()` → `Ensure_CrashUIs()` → `Tick_CrashEffect(dt)` 흐름. `HUD_CrashLight / White / Font / Mask` 4개 `CUI_Image` 를 코드에서 생성하며, `pTextureProtoTag` 기반으로만 로드한다.
+- **텍스처 Prototype**: `Loader.cpp` 에 `Prototype_Component_Texture_HUD_CrashFont/White/Light/Mask` 등록. Path 동적 로드 금지, 기존 HUD 텍스처 Prototype 패턴 유지.
+- **파편 Atlas VFX**: `Resources/Textures/Effect/Crash/Fx_CrashBuff_01_LC.png`(4096x4096)을 `Prototype_Component_Texture_Effect_Crash_Atlas` 로 등록. `Notify_Crash()` 시 `Spawn_CrashAtlasEffect()` 가 `Prototype_GameObject_AtlasInstanceEffect` 를 `Layer_Effect` 에 1회 생성한다.
+- **Atlas 설정**: `iAtlasCols=4`, `iAtlasRows=4`, `fFrameDuration=0.035f`, `bLoop=false`, `iShaderPass=1`(Torch 와 같은 Additive 계열). 위치는 현재 카메라 View 역행렬 기준 정면 `4.0f` 앞.
+- **화면 전체 크기**: `Spawn_CrashAtlasEffect()` 는 `D3DTS::PROJ` 의 `_11/_22` 로 현재 거리에서 화면 너비/높이를 계산하고 `Desc.vSize = _float2(fViewWidth * 1.15f, fViewHeight * 1.15f)` 로 화면을 가득 덮는다.
+- **CrashLight 크기 보정(사용자 확인)**: `Tick_CrashEffect()` 에서 `m_pCrashUI[0]`(CrashLight)은 `m_fViewW * 1.15f`, `m_fViewH * 1.15f` 로 viewport 전체를 덮고, 나머지 `White/Font/Mask` 는 `CrashBaseSizes[i] * fLayerScale` 유지. 사용자 실행 확인 결과 이 구성이 의도한 화면 느낌에 가장 가까움.
+- **빌드/검증**: 사용자 측 전체 솔루션 빌드 성공 확인. CRASH 글자 UI는 출력 확인. Atlas 파편은 화면 전체 크기 보정까지 적용한 상태이며, 추가 튜닝 시 `Desc.fFrameDuration`, `Desc.vColor`, `Desc.fAlpha`, `CrashBaseSizes`, `CRASH_EFFECT_DURATION` 을 우선 조정한다.
+
+**이어받기 주의**
+
+- `HUD_GamePlay.cpp/.h`, `Loader.cpp`, `Monster.cpp` 는 CP949 파일이므로 직접 수정 시 반드시 CP949 왕복 저장한다.
+- `Boss_Monster.cpp` 는 UTF-8 no BOM. 현재 보스의 post-crash 패턴 감지는 Update 의 `bCrashBefore/bCrashNow` 를 계속 사용하지만, HUD 알림은 base `CMonster::Handle_ActionTransition()` 에서 처리한다.
+- `CAtlasInstanceEffect` 는 완료 후 자동 제거는 하지 않고 `m_bFinished` 시 RenderGroup 등록만 멈춘다. CRASH가 매우 자주 반복될 경우 `Layer_Effect` 오브젝트 누적 정리 정책을 별도 검토한다.
+
+---
+
+## 11. R8-C 콤보 uiscene 저작 가이드 (2026-05-26 갱신 — HITS + 바운스 연출)
+
+**레이아웃 (스크린샷 기준)**: 등급(위, 큰 아틀라스) / 숫자(아래, 우측정렬) / "HITS"(숫자 오른쪽, 작게).
+**연출**: 등급=변경 시 Center 팝업(작게→1.35→1.0). 타격 시 숫자=왼쪽 살짝 바운스, HITS=오른쪽 바운스(0.15s 복귀).
+
+**공통**: ProtoLevel=**GAMEPLAY** / visible=**OFF** 전부(코드 토글) / SweepMode=NONE / ProtoTag 풀네임 = `Prototype_Component_Texture_HUD_` + 값.
+
+| 이름 | 타입 | ProtoTag/텍스트 | Cols×Rows / Scale | X | Y | 크기 | 비고 |
+|---|---|---|---|---|---|---|---|
+| HUD_Combo_Rank | SpriteAnim | Combo_Rank | 7×1 | 1180 | 150 | 90×90 | 등급, Center 팝업 |
+| HUD_Combo_Digit2 | SpriteAnim | Combo_Digit | 10×1 | 1150 | 220 | 36×52 | 백의 자리(가장 왼쪽) |
+| HUD_Combo_Digit1 | SpriteAnim | Combo_Digit | 10×1 | 1186 | 220 | 36×52 | 십의 자리 |
+| HUD_Combo_Digit0 | SpriteAnim | Combo_Digit | 10×1 | 1222 | 220 | 36×52 | 일의 자리(가장 오른쪽=기준) |
+| HUD_Combo_Hits | Text | "HITS" | Scale 0.6 | 1255 | 226 | - | 흰색, HAlign=LEFT·VAlign=MIDDLE |
+
+- **SpriteAnim 4개**: **FrameDur=9999**(자동진행 차단, 코드 `Set_Frame` 고정). bLoop 무관.
+- **HITS(Text)**: FontTag=기존 HUD 폰트, Color=(1,1,1,1), HAlign=LEFT.
+- 숫자 **우측정렬**: Digit0(일, X=1222) 고정, 십·백은 36px씩 왼쪽. 1자리=Digit0만 / 2자리=0+1 / 3자리=셋 다.
+- 바운스 base = 저작한 시작 좌표(`Cache_UIs`가 캐시). 위치는 실행하며 드래그 조정.
+- `Atlas_ComboFont`=7칸(0=D…6=SSS), `Atlas_DamageFont_BG_NONE`=10칸(0~9). cols/rows 만 맞으면 UV 자동.
+- 콤보가 안 보이면 ① 이름 오타 ② cols/rows ③ ProtoLevel=GAMEPLAY ④ 타입(SpriteAnim/Text) 확인.
 
 ---
 

@@ -161,12 +161,12 @@ void CLevel_Logo::Enter_Title()
     if (m_pMenuPanelBg)  
         m_pMenuPanelBg->Set_Visible(false);
 
-    m_pGameInstance->Play_BGM(TEXT("Bgm/Bgm_Title.wav"), 0.8f, true);
+    m_pGameInstance->Play_BGM(TEXT("Bgm_Title.wav"), 0.8f, true);
 }
 
 void CLevel_Logo::Enter_Menu()
 {
-    m_pGameInstance->Play_Sound(TEXT("UI/Button_Title.wav"),
+    m_pGameInstance->Play_Sound(TEXT("Button_Title.wav"),
                                  SOUND_CHANNEL::UI,
                                  1.0f,
                                  false);
@@ -288,7 +288,7 @@ void CLevel_Logo::Set_Hovered(MENU_ITEM eNew)
 
     if (CUI_Text* pNew = Get_MenuButton(m_eHovered))
     {
-        m_pGameInstance->Play_Sound(TEXT("UI/Button_Hovered.wav"), 
+        m_pGameInstance->Play_Sound(TEXT("Button_Hovered.wav"), 
                                     SOUND_CHANNEL::UI,
                                     0.5f, 
                                     false);
@@ -305,7 +305,7 @@ void CLevel_Logo::Set_Hovered(MENU_ITEM eNew)
 
 void CLevel_Logo::Dispatch_Action(MENU_ITEM eItem)
 {
-    m_pGameInstance->Play_Sound(TEXT("UI/Button_Enter.wav"),
+    m_pGameInstance->Play_Sound(TEXT("Button_Enter.wav"),
         SOUND_CHANNEL::UI,
         0.6f,
         false);

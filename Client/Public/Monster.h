@@ -14,6 +14,7 @@ NS_BEGIN(Client)
 
 class CBody_Monster;
 class CWeapon;
+class CWeaponTrailEffect;
 class CMonster_StateMachine;
 class CPlayer;
 
@@ -72,6 +73,7 @@ public:
 														_bool bInitial);
 
 	void						Set_WeaponHitboxActive(_bool bActive);
+	void						Set_WeaponTrailActive(_bool bActive);
 	virtual void				On_AttackHitboxNotify(_bool bActive);
 
 #ifdef _DEBUG
@@ -113,6 +115,7 @@ protected:
 protected:
 	HRESULT						Ready_Components(const MONSTER_DESC& Desc);
 	virtual HRESULT				Ready_PartObjects(const MONSTER_DESC& Desc);
+	HRESULT						Ready_WeaponTrailEffect();
 	HRESULT						Ready_StateMachine();
 
 	_bool                       Resolve_NavigationPosition(const _float3& vCandidatePosition, _float3* pOutPosition);
@@ -125,6 +128,7 @@ protected:
 	CNavigationAgent*			m_pNavigationAgent = { nullptr };
 	CBody_Monster*				m_pBody = { nullptr };
 	CWeapon*					m_pWeapon = { nullptr };
+	CWeaponTrailEffect*			m_pWeaponTrail = { nullptr };
 	CCollider*					m_pCollider = { nullptr };
 	CMonster_StateMachine*		m_pStateMachine = { nullptr };
 	CGameObject*				m_pTarget = { nullptr };

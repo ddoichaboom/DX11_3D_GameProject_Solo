@@ -7,6 +7,8 @@
 #include "Player.h"
 #include "Transform.h"
 #include "UI_Text.h"
+#include "UI_SpriteAnim.h"
+#include "AtlasInstanceEffect.h"
 
 CHUD_GamePlay* CHUD_GamePlay::s_pInstance = { nullptr };
 
@@ -100,6 +102,22 @@ void CHUD_GamePlay::Notify_CombatInput()
 	Set_PlayerBars_Visible(true);
 }
 
+void CHUD_GamePlay::Notify_ComboHit()
+{
+	++m_iComboCount;
+	m_fComboDecayTimer = COMBO_DECAY_STEP;		// 마지막 타격 이후 2초 여유  ->  이후 2초마다 1단계씩 하락
+	m_fComboHitBounce = HIT_BOUNCE_DURATION;
+}
+
+void CHUD_GamePlay::Notify_Crash()
+{
+	Ensure_CrashUIs();
+	Set_CrashVisible(true);
+	m_bCrashEffectPlaying = true;
+	m_fCrashEffectElapsed = 0.f;
+	Spawn_CrashAtlasEffect();
+}
+
 HRESULT CHUD_GamePlay::Initialize_Prototype()
 {
 	return S_OK;
@@ -185,6 +203,8 @@ void CHUD_GamePlay::Update(_float fTimeDelta)
 	Tick_Dash(fTimeDelta);
 	Tick_Sweep(fTimeDelta);
 	Tick_Skills(fTimeDelta);
+	Tick_Combo(fTimeDelta);
+	Tick_CrashEffect(fTimeDelta);
 }
 
 void CHUD_GamePlay::Late_Update(_float fTimeDelta)
@@ -198,6 +218,7 @@ HRESULT CHUD_GamePlay::Render()
 
 void CHUD_GamePlay::Cache_UIs()
 {
+	Ensure_CrashUIs();
 	static const _tchar* Names[static_cast<_uint>(HUD_SLOT::END)] = {
 	  TEXT("HUD_MonsterHP_Back"), TEXT("HUD_MonsterHP_Reduce"), TEXT("HUD_MonsterHP_Fill"), TEXT("HUD_MonsterHP_BarLight"),
 	  TEXT("HUD_MonsterBreak_Back"), TEXT("HUD_MonsterBreak_Reduce"), TEXT("HUD_MonsterBreak_Fill"),
@@ -233,22 +254,56 @@ void CHUD_GamePlay::Cache_UIs()
 				if (nullptr == pText) continue;
 
 				const _wstring& strName = pText->Get_ObjectName();
-				if (strName == TEXT("HUD_MonsterLevel"))     m_pUI_MonsterLevel = pText;
-				else if (strName == TEXT("HUD_MonsterName")) m_pUI_MonsterName = pText;
-					else if (strName == TEXT("HUD_Skill_C_Key")) m_pSkillKeyText[0] = pText;
-					else if (strName == TEXT("HUD_Skill_F_Key")) m_pSkillKeyText[1] = pText;
-					else if (strName == TEXT("HUD_Skill_Q_Key")) m_pSkillKeyText[2] = pText;
-					else if (strName == TEXT("HUD_Skill_E_Key")) m_pSkillKeyText[3] = pText;
-					else if (strName == TEXT("HUD_Skill_R_Key")) m_pSkillKeyText[4] = pText;
-					else if (strName == TEXT("HUD_QTE_Key")) m_pSkillKeyText[5] = pText;
-					else if (strName == TEXT("HUD_Quest_Title")) m_pQuestText[0] = pText;
-					else if (strName == TEXT("HUD_Quest_Objective")) m_pQuestText[1] = pText;
-					else if (strName == TEXT("HUD_Quest_Collect")) m_pQuestText[2] = pText;
+				if (strName == TEXT("HUD_MonsterLevel"))     
+					m_pUI_MonsterLevel = pText;
+				else if (strName == TEXT("HUD_MonsterName")) 
+						m_pUI_MonsterName = pText;
+					else if (strName == TEXT("HUD_Skill_C_Key")) 
+						m_pSkillKeyText[0] = pText;
+					else if (strName == TEXT("HUD_Skill_F_Key")) 
+						m_pSkillKeyText[1] = pText;
+					else if (strName == TEXT("HUD_Skill_Q_Key")) 
+						m_pSkillKeyText[2] = pText;
+					else if (strName == TEXT("HUD_Skill_E_Key")) 
+						m_pSkillKeyText[3] = pText;
+					else if (strName == TEXT("HUD_Skill_R_Key")) 
+						m_pSkillKeyText[4] = pText;
+					else if (strName == TEXT("HUD_QTE_Key")) 
+						m_pSkillKeyText[5] = pText;
+					else if (strName == TEXT("HUD_Quest_Title")) 
+						m_pQuestText[0] = pText;
+					else if (strName == TEXT("HUD_Quest_Objective")) 
+						m_pQuestText[1] = pText;
+					else if (strName == TEXT("HUD_Quest_Collect")) 
+						m_pQuestText[2] = pText;
+					else if (strName == TEXT("HUD_Quest_Collect")) 
+						m_pQuestText[2] = pText;
+					else if (strName == TEXT("HUD_Combo_Hits")) 
+						m_pComboHitsText = pText;
 			}
 		}
 	}
 
-
+	m_pComboRank = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Rank")));
+	m_pComboDigit[0] = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Digit0")));
+	m_pComboDigit[1] = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Digit1")));
+	m_pComboDigit[2] = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Digit2")));
+	if (nullptr != m_pComboRank)
+	{
+		m_fComboRankBaseW = m_pComboRank->Get_SizeX();
+		m_fComboRankBaseH = m_pComboRank->Get_SizeY();
+	}
+	for (_int i = 0; i < 3; ++i)
+		if (nullptr != m_pComboDigit[i])
+		{
+			m_fComboDigitBaseX[i] = m_pComboDigit[i]->Get_CenterX();
+			m_fComboDigitBaseY[i] = m_pComboDigit[i]->Get_CenterY();
+		}
+	if (nullptr != m_pComboHitsText)
+	{
+		m_fComboHitsBaseX = m_pComboHitsText->Get_CenterX();
+		m_fComboHitsBaseY = m_pComboHitsText->Get_CenterY();
+	}
 }
 
 void CHUD_GamePlay::Resolve_Player()
@@ -709,6 +764,269 @@ void CHUD_GamePlay::Refresh_SkillIcons(EQUIPPED_WEAPON_ID eWeapon)
 	SetIcon(HUD_SLOT::SKILL_C_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKK"));
 	SetIcon(HUD_SLOT::SKILL_F_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_Kasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_KK"));
 	SetIcon(HUD_SLOT::SKILL_E_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_Kasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_KK"));
+}
+
+void CHUD_GamePlay::Tick_Combo(_float fTimeDelta)
+{
+	// 1) 2초마다 등급 한 단계씩 하락
+	if (m_iComboCount > 0)
+	{
+		m_fComboDecayTimer -= fTimeDelta;
+		if (m_fComboDecayTimer <= 0.f)
+		{
+			const _int iCurRank = Combo_RankFromCount(m_iComboCount);
+			if (iCurRank <= 0)
+				m_iComboCount = 0;                                   // D 밑이면 종료
+			else
+				m_iComboCount = COMBO_THRESHOLD[iCurRank - 1];       // 한 단계 아래 하한으로
+			m_fComboDecayTimer = COMBO_DECAY_STEP;
+		}
+	}
+
+	// 2) 등급 산정 -> 변경 시 팝업
+	const _int iNewRank = Combo_RankFromCount(m_iComboCount);
+	if (iNewRank != m_iComboRank)
+	{
+		m_iComboRank = iNewRank;
+		if (iNewRank >= 0)
+		{
+			if (nullptr != m_pComboRank)
+				m_pComboRank->Set_Frame(static_cast<_uint>(iNewRank));
+			m_fRankPopTimer = RANK_POP_DURATION;
+		}
+	}
+
+	const _bool bShow = (m_iComboRank >= 0 && m_iComboCount > 0);
+
+	// 3) 등급 표시 + 팝 Scale (Center는 고정, 확대)
+	if (nullptr != m_pComboRank)
+	{
+		m_pComboRank->Set_Visible(bShow);
+
+		_float fScale = 1.f;
+		if (m_fRankPopTimer > 0.f)
+		{
+			m_fRankPopTimer = max(0.f, m_fRankPopTimer - fTimeDelta);
+			const _float p = 1.f - m_fRankPopTimer / RANK_POP_DURATION;   
+			if (p < 0.45f)
+				fScale = 0.2f + (RANK_POP_SCALE_MAX - 0.2f) * (p / 0.45f);
+			else
+				fScale = RANK_POP_SCALE_MAX + (1.f - RANK_POP_SCALE_MAX) * ((p - 0.45f) / 0.55f);
+		}
+		if (m_fComboRankBaseW > 0.f)
+			m_pComboRank->Set_Size(m_fComboRankBaseW * fScale, m_fComboRankBaseH * fScale);
+	}
+
+	// 4) 터격시 바운스 오프셋 ( 타격 순간 최대 -> 복귀)
+	_float fBounce = 0.f;
+	if (m_fComboHitBounce > 0.f)
+	{
+		m_fComboHitBounce = max(0.f, m_fComboHitBounce - fTimeDelta);
+		fBounce = m_fComboHitBounce / HIT_BOUNCE_DURATION;   // 1 → 0
+	}
+
+	// 5) 타격 횟수 숫자 ( 우측 정렬) - 왼쪽으로 살짝 바운스
+	_int iVal = m_iComboCount;
+	for (_int i = 0; i < 3; ++i)
+	{
+		if (nullptr == m_pComboDigit[i])
+		{
+			iVal /= 10;
+			continue;
+		}
+		const _bool bDigitOn = bShow && (i == 0 || iVal > 0);
+		m_pComboDigit[i]->Set_Visible(bDigitOn);
+		if (bDigitOn)
+		{
+			m_pComboDigit[i]->Set_Frame(static_cast<_uint>(iVal % 10));
+			m_pComboDigit[i]->Set_Center(m_fComboDigitBaseX[i] - DIGIT_BOUNCE_X * fBounce, m_fComboDigitBaseY[i]);
+		}
+		iVal /= 10;
+	}
+
+	// 6) HITS 글자 오른쪽으로 바운스
+	if (nullptr != m_pComboHitsText)
+	{
+		m_pComboHitsText->Set_Visible(bShow);
+		m_pComboHitsText->Set_Center(m_fComboHitsBaseX + HITS_BOUNCE_X * fBounce, m_fComboHitsBaseY);
+	}
+}
+void CHUD_GamePlay::Ensure_CrashUIs()
+{
+	static const _tchar* CrashNames[4] =
+	{
+		TEXT("HUD_CrashLight"),
+		TEXT("HUD_CrashWhite"),
+		TEXT("HUD_CrashFont"),
+		TEXT("HUD_CrashMask"),
+	};
+
+	static const _tchar* CrashTextureTags[4] =
+	{
+		TEXT("Prototype_Component_Texture_HUD_CrashLight"),
+		TEXT("Prototype_Component_Texture_HUD_CrashWhite"),
+		TEXT("Prototype_Component_Texture_HUD_CrashFont"),
+		TEXT("Prototype_Component_Texture_HUD_CrashMask"),
+	};
+
+	static const _float2 CrashBaseSizes[4] =
+	{
+		_float2(520.f, 309.f),
+		_float2(443.f, 96.f),
+		_float2(443.f, 96.f),
+		_float2(416.f, 66.f),
+	};
+
+	for (_uint i = 0; i < 4; ++i)
+	{
+		if (nullptr == m_pCrashUI[i])
+			m_pCrashUI[i] = Find_UI_ByName(CrashNames[i]);
+		if (nullptr != m_pCrashUI[i])
+			continue;
+
+		CUI_Image::UI_IMAGE_DESC Desc{};
+		Desc.fCenterX = m_fViewW * 0.5f;
+		Desc.fCenterY = m_fViewH * 0.43f;
+		Desc.fSizeX = CrashBaseSizes[i].x;
+		Desc.fSizeY = CrashBaseSizes[i].y;
+		Desc.iZOrder = 8500 + i;
+		Desc.pObjectName = CrashNames[i];
+		Desc.bVisible = false;
+		Desc.pTextureProtoTag = CrashTextureTags[i];
+		Desc.iTextureProtoLevel = ETOUI(LEVEL::GAMEPLAY);
+		Desc.vColor = _float4(1.f, 1.f, 1.f, 1.f);
+
+		if (FAILED(m_pGameInstance->Add_GameObject(
+			ETOUI(LEVEL::STATIC), TEXT("Prototype_GameObject_UI_Image"),
+			ETOUI(LEVEL::GAMEPLAY), TEXT("Layer_UI"), &Desc)))
+			continue;
+
+		m_pCrashUI[i] = Find_UI_ByName(CrashNames[i]);
+	}
+
+	Set_CrashVisible(false);
+}
+
+void CHUD_GamePlay::Spawn_CrashAtlasEffect()
+{
+    const _float4x4* pView = m_pGameInstance->Get_Transform(D3DTS::VIEW);
+    const _float4x4* pProj = m_pGameInstance->Get_Transform(D3DTS::PROJ);
+    if (nullptr == pView || nullptr == pProj)
+        return;
+
+    constexpr _float fEffectDistance = 4.0f;
+    _matrix ViewMatrix = XMLoadFloat4x4(pView);
+    _matrix InvViewMatrix = XMMatrixInverse(nullptr, ViewMatrix);
+    _vector vCameraPosition = InvViewMatrix.r[3];
+    _vector vCameraLook = XMVector3Normalize(InvViewMatrix.r[2]);
+
+    const _float fProjX = max(0.001f, pProj->_11);
+    const _float fProjY = max(0.001f, pProj->_22);
+    const _float fViewHeight = (2.f * fEffectDistance) / fProjY;
+    const _float fViewWidth = fViewHeight * (fProjY / fProjX);
+
+    vector<_float4> Positions;
+    _float4 vEffectPosition{};
+    XMStoreFloat4(&vEffectPosition, vCameraPosition + vCameraLook * fEffectDistance);
+    vEffectPosition.w = 1.f;
+    Positions.push_back(vEffectPosition);
+
+    CAtlasInstanceEffect::ATLAS_INSTANCE_EFFECT_DESC Desc{};
+    Desc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Crash_Atlas");
+    Desc.pPositions = &Positions;
+    Desc.iMaxInstanceCount = 1;
+    Desc.iAtlasCols = 4;
+    Desc.iAtlasRows = 4;
+    Desc.fFrameDuration = 0.035f;
+    Desc.vSize = _float2(fViewWidth * 1.15f, fViewHeight * 1.15f);
+    Desc.vUVPadding = _float2(0.001f, 0.001f);
+    Desc.vColor = _float4(1.25f, 1.25f, 1.25f, 1.f);
+    Desc.fAlpha = 0.95f;
+    Desc.iShaderPass = 1;
+    Desc.bLoop = false;
+
+    m_pGameInstance->Add_GameObject(
+        ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_AtlasInstanceEffect"),
+        ETOUI(LEVEL::GAMEPLAY), TEXT("Layer_Effect"), &Desc);
+}
+
+void CHUD_GamePlay::Tick_CrashEffect(_float fTimeDelta)
+{
+	if (false == m_bCrashEffectPlaying)
+		return;
+
+	m_fCrashEffectElapsed += fTimeDelta;
+	const _float fT = min(1.f, m_fCrashEffectElapsed / CRASH_EFFECT_DURATION);
+
+	_float fScale = 1.f;
+	if (fT < 0.18f)
+		fScale = 1.55f + (1.08f - 1.55f) * (fT / 0.18f);
+	else if (fT < 0.32f)
+		fScale = 1.08f + (1.f - 1.08f) * ((fT - 0.18f) / 0.14f);
+
+	const _float fFade = (fT < 0.65f) ? 1.f : max(0.f, 1.f - ((fT - 0.65f) / 0.35f));
+	const _float fLightAlpha = max(0.f, 1.f - fT);
+	const _float fWhiteAlpha = (fT < 0.18f) ? (1.f - fT / 0.18f) : 0.f;
+	const _float fMaskAlpha = (fT < 0.35f) ? 0.7f : max(0.f, 0.7f * (1.f - ((fT - 0.35f) / 0.25f)));
+
+	static const _float2 CrashBaseSizes[4] =
+	{
+		_float2(520.f, 309.f),
+		_float2(443.f, 96.f),
+		_float2(443.f, 96.f),
+		_float2(416.f, 66.f),
+	};
+
+	const _float fCenterX = m_fViewW * 0.5f;
+	const _float fCenterY = m_fViewH * 0.43f;
+	const _float Alphas[4] = { fLightAlpha, fWhiteAlpha, fFade, fMaskAlpha };
+
+	for (_uint i = 0; i < 4; ++i)
+	{
+		if (nullptr == m_pCrashUI[i])
+			continue;
+
+		//const _float fLayerScale = (0 == i) ? (fScale * 1.12f) : fScale;
+
+		const _float fLayerScale = fScale;
+
+		m_pCrashUI[i]->Set_Center(fCenterX, fCenterY);
+
+		if (0 == i)
+			m_pCrashUI[i]->Set_Size(m_fViewW * 1.15f, m_fViewH * 1.15f);
+		else
+			m_pCrashUI[i]->Set_Size(CrashBaseSizes[i].x * fLayerScale, CrashBaseSizes[i].y * fLayerScale);
+
+		m_pCrashUI[i]->Set_Alpha(Alphas[i]);
+		m_pCrashUI[i]->Set_Visible(Alphas[i] > 0.01f);
+	}
+
+	if (CRASH_EFFECT_DURATION <= m_fCrashEffectElapsed)
+	{
+		m_bCrashEffectPlaying = false;
+		Set_CrashVisible(false);
+	}
+}
+
+void CHUD_GamePlay::Set_CrashVisible(_bool bVisible)
+{
+	for (_uint i = 0; i < 4; ++i)
+	{
+		if (nullptr == m_pCrashUI[i])
+			continue;
+		m_pCrashUI[i]->Set_Visible(bVisible);
+		if (false == bVisible)
+			m_pCrashUI[i]->Set_Alpha(0.f);
+	}
+}
+
+_int CHUD_GamePlay::Combo_RankFromCount(_int iCount) const
+{
+	_int iRank = -1;
+	for (_int i = 0; i < 7; ++i)
+		if (iCount >= COMBO_THRESHOLD[i])
+			iRank = i;
+	return iRank;
 }
 
 void CHUD_GamePlay::Set_MonsterBars_Visible(_bool bVisible)

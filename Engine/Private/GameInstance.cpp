@@ -558,6 +558,14 @@ HRESULT CGameInstance::Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eCh
 	return m_pSound_Manager->Play_Sound(strSoundKey, eChannel, fVolume, bLoop);
 }
 
+HRESULT CGameInstance::Play_SoundSequence(const _wstring* pSoundKeys, _uint iNumSounds, SOUND_CHANNEL eChannel, _float fVolume)
+{
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
+	return m_pSound_Manager->Play_SoundSequence(pSoundKeys, iNumSounds, eChannel, fVolume);
+}
+
 HRESULT CGameInstance::Play_BGM(const _wstring& strSoundKey, _float fVolume, _bool bLoop)
 {
 	if (nullptr == m_pSound_Manager)

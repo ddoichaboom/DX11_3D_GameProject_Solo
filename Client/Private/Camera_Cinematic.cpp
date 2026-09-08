@@ -161,6 +161,24 @@ void CCamera_Cinematic::Deactivate_Cinematic()
 	Set_ActiveCamera(false);
 	Apply_Fovy(m_fDefaultFovy);
 	Reset_AttachState();
+
+	if (nullptr != m_pReturnCamera)
+	{
+		m_pReturnCamera->Set_ActiveCamera(true);
+		m_pReturnCamera->Update_PipeLine();
+	}
+}
+
+void CCamera_Cinematic::Set_ReturnCamera(CCamera* pReturnCamera)
+{
+	if (m_pReturnCamera == pReturnCamera)
+		return;
+
+	Safe_Release(m_pReturnCamera);
+
+	m_pReturnCamera = pReturnCamera;
+
+	Safe_AddRef(m_pReturnCamera);
 }
 
 _bool CCamera_Cinematic::Resolve_AnchorWorldMatrix(const ANCHOR_DESC& Anchor, _float4x4* pOutWorld) const
@@ -224,7 +242,16 @@ _bool CCamera_Cinematic::Resolve_ObjectWorldMatrix(CGameObject* pObject, const _
 		if (nullptr == pPivotMatrix)
 			return false;
 
-		WorldMatrix = XMLoadFloat4x4(pPivotMatrix) * WorldMatrix;
+		_matrix PivotWorldMatrix = XMLoadFloat4x4(pPivotMatrix) * WorldMatrix;
+
+		if (false == m_Desc.bUsePivotRotation)
+		{
+			WorldMatrix.r[3] = PivotWorldMatrix.r[3];
+		}
+		else
+		{
+			WorldMatrix = PivotWorldMatrix;
+		}
 	}
 
 	XMStoreFloat4x4(pOutWorld, WorldMatrix);
@@ -390,6 +417,8 @@ CGameObject* CCamera_Cinematic::Clone(void* pArg)
 void CCamera_Cinematic::Free()
 {
 	Reset_AttachState();
+
+	Safe_Release(m_pReturnCamera);
 
 	__super::Free();
 }

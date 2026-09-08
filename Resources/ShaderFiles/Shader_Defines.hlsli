@@ -13,6 +13,20 @@ sampler PointSampler = sampler_state
     AddressV = wrap;
 };
 
+sampler ClampSampler = sampler_state
+{
+    filter = min_mag_mip_linear;
+    AddressU = clamp;
+    AddressV = clamp;
+};
+
+sampler PointClampSampler = sampler_state
+{
+    filter = min_mag_mip_point;
+    AddressU = clamp;
+    AddressV = clamp;
+};
+
 // Rasterizer States
 RasterizerState RS_Wireframe
 {

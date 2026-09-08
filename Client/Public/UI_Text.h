@@ -39,6 +39,10 @@ public:
     void                    Set_Color(const _float4& vColor) { m_vColor = vColor; }
     void                    Set_Scale(_float fScale) { m_fScale = fScale; }
 
+    void                    Set_Center(_float fCenterX, _float fCenterY);
+    _float                  Get_CenterX() const { return m_fCenterX; }
+    _float                  Get_CenterY() const { return m_fCenterY; }
+    
     void                    Set_EffectScale(_float fScale) { m_fEffectScale = fScale; }
     _float                  Get_EffectScale() const { return m_fEffectScale; }
     void                    Set_Rotation(_float fRotation) { m_fRotation = fRotation; }

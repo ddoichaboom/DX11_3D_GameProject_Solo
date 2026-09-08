@@ -17,6 +17,7 @@ private:
 public:
 	MONSTER_ACTION					Get_CurrentMonsterAction() const;
 	MONSTER_ACTION_STEP				Get_CurrentMonsterStep() const;
+	void							Get_SkillParams(_uint iStateKey, _float& fOutRadius, _float& fOutDamage, _float& fOutForwardOffset) const;
 public:
 	HRESULT							Initialize(const MONSTER_ANIM_TABLE_DESC* pAnimTable);
 
@@ -32,7 +33,15 @@ protected:
 	virtual void					On_Transition(_uint iFrom, _uint iTo, _bool bInitial) override;
 
 private:
+	struct SKILL_PARAMS
+	{
+		_float fRadius = { 0.f };
+		_float fDamage = { 0.f };
+		_float fForwardOffset = { 0.f };
+	};
+
 	CMonster*						m_pOwner = { nullptr };
+	map<_uint, SKILL_PARAMS>		m_SkillParams;
 
 public:
 	static CMonster_StateMachine*	Create(const MONSTER_ANIM_TABLE_DESC* pAnimTable);

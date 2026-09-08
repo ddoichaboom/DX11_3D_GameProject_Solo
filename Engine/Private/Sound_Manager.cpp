@@ -32,6 +32,8 @@ void CSound_Manager::Update()
 {
 	if (nullptr != m_pSystem)
 		m_pSystem->update();
+
+	Update_Sequences();
 }
 
 HRESULT CSound_Manager::Load_SoundFiles(const _tchar* pRootPath)
@@ -48,30 +50,7 @@ HRESULT CSound_Manager::Load_SoundFiles(const _tchar* pRootPath)
 
 HRESULT CSound_Manager::Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume, _bool bLoop)
 {
-	if (nullptr == m_pSystem)
-		return E_FAIL;
-
-	FMOD::Sound* pSound = Find_Sound(strSoundKey);
-	if (nullptr == pSound)
-		return E_FAIL;
-
-	const _int iChannel = ETOI(eChannel);
-	if (0 > iChannel || ETOI(SOUND_CHANNEL::END) <= iChannel)
-		return E_FAIL;
-
-	pSound->setMode(true == bLoop ? FMOD_LOOP_NORMAL : FMOD_LOOP_OFF);
-
-	FMOD::Channel* pChannel = nullptr;
-	if (FMOD_OK != m_pSystem->playSound(pSound, m_ChannelGroups[iChannel], false, &pChannel))
-		return E_FAIL;
-
-	if (nullptr != pChannel)
-	{
-		pChannel->setVolume(fVolume);
-		m_Channels[iChannel] = pChannel;
-	}
-
-	return S_OK;
+	return Play_Sound_Internal(strSoundKey, eChannel, fVolume, bLoop, true);
 }
 
 HRESULT CSound_Manager::Play_BGM(const _wstring& strSoundKey, _float fVolume, _bool bLoop)
@@ -80,11 +59,49 @@ HRESULT CSound_Manager::Play_BGM(const _wstring& strSoundKey, _float fVolume, _b
 	return Play_Sound(strSoundKey, SOUND_CHANNEL::BGM, fVolume, bLoop);
 }
 
+HRESULT CSound_Manager::Play_SoundSequence(const _wstring* pSoundKeys, _uint iNumSounds, SOUND_CHANNEL eChannel, _float fVolume)
+{
+	if (nullptr == pSoundKeys || 0 == iNumSounds)
+		return E_FAIL;
+
+	const _int iChannel = ETOI(eChannel);
+	if (0 > iChannel || ETOI(SOUND_CHANNEL::END) <= iChannel)
+		return E_FAIL;
+
+	SOUND_SEQUENCE& Sequence = m_SoundSequences[iChannel];
+
+	Sequence.SoundKeys.clear();
+	Sequence.SoundKeys.reserve(iNumSounds);
+
+	for (_uint i = 0; i < iNumSounds; ++i)
+	{
+		if (false == pSoundKeys[i].empty())
+			Sequence.SoundKeys.push_back(pSoundKeys[i]);
+	}
+
+	if (true == Sequence.SoundKeys.empty())
+		return E_FAIL;
+
+	Sequence.iCurrentIndex = 0;
+	Sequence.fVolume = fVolume;
+	Sequence.bActive = true;
+
+	if (FAILED(Play_Sound_Internal(Sequence.SoundKeys[0], eChannel, fVolume, false, false)))
+	{
+		Clear_Sequence(eChannel);
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
 void CSound_Manager::Stop_Sound(SOUND_CHANNEL eChannel)
 {
 	const _int iChannel = ETOI(eChannel);
 	if (0 > iChannel || ETOI(SOUND_CHANNEL::END) <= iChannel)
 		return;
+
+	Clear_Sequence(eChannel);
 
 	if (nullptr != m_ChannelGroups[iChannel])
 		m_ChannelGroups[iChannel]->stop();
@@ -96,8 +113,16 @@ void CSound_Manager::Stop_All()
 {
 	for (_int i = 0; i < ETOI(SOUND_CHANNEL::END); ++i)
 	{
+		m_SoundSequences[i].SoundKeys.clear();
+		m_SoundSequences[i].iCurrentIndex = 0;
+		m_SoundSequences[i].bActive = false;
+
+		if (i == ETOI(SOUND_CHANNEL::MASTER))
+			continue;
+
 		if (nullptr != m_ChannelGroups[i])
 			m_ChannelGroups[i]->stop();
+
 		m_Channels[i] = nullptr;
 	}
 }
@@ -267,6 +292,87 @@ FMOD::Sound* CSound_Manager::Find_Sound(const _wstring& strSoundKey) const
 		return iter->second;
 
 	return nullptr;
+}
+
+HRESULT CSound_Manager::Play_Sound_Internal(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume, _bool bLoop, _bool bCancelSequence)
+{
+	if (nullptr == m_pSystem)
+		return E_FAIL;
+
+	const _int iChannel = ETOI(eChannel);
+	if (0 > iChannel || ETOI(SOUND_CHANNEL::END) <= iChannel)
+		return E_FAIL;
+
+	if (true == bCancelSequence)
+		Clear_Sequence(eChannel);
+
+	FMOD::Sound* pSound = Find_Sound(strSoundKey);
+	if (nullptr == pSound)
+		return E_FAIL;
+
+	pSound->setMode(true == bLoop ? FMOD_LOOP_NORMAL : FMOD_LOOP_OFF);
+
+	FMOD::Channel* pChannel = nullptr;
+	if (FMOD_OK != m_pSystem->playSound(pSound, m_ChannelGroups[iChannel], false, &pChannel))
+		return E_FAIL;
+
+	if (nullptr != pChannel)
+	{
+		pChannel->setVolume(fVolume);
+		m_Channels[iChannel] = pChannel;
+	}
+
+	return S_OK;
+}
+
+void CSound_Manager::Update_Sequences()
+{
+	for (_int i = 0; i < ETOI(SOUND_CHANNEL::END); ++i)
+	{
+		SOUND_SEQUENCE& Sequence = m_SoundSequences[i];
+
+		if (false == Sequence.bActive)
+			continue;
+
+		bool bPlaying = false;
+
+		if (nullptr != m_Channels[i])
+			m_Channels[i]->isPlaying(&bPlaying);
+
+		if (true == bPlaying)
+			continue;
+
+		++Sequence.iCurrentIndex;
+
+		if (Sequence.iCurrentIndex >= Sequence.SoundKeys.size())
+		{
+			Sequence.SoundKeys.clear();
+			Sequence.bActive = false;
+			continue;
+		}
+
+		if (FAILED(Play_Sound_Internal(
+			Sequence.SoundKeys[Sequence.iCurrentIndex],
+			static_cast<SOUND_CHANNEL>(i),
+			Sequence.fVolume,
+			false,
+			false)))
+		{
+			Sequence.SoundKeys.clear();
+			Sequence.bActive = false;
+		}
+	}
+}
+
+void CSound_Manager::Clear_Sequence(SOUND_CHANNEL eChannel)
+{
+	const _int iChannel = ETOI(eChannel);
+	if (0 > iChannel || ETOI(SOUND_CHANNEL::END) <= iChannel)
+		return;
+
+	m_SoundSequences[iChannel].SoundKeys.clear();
+	m_SoundSequences[iChannel].iCurrentIndex = 0;
+	m_SoundSequences[iChannel].bActive = false;
 }
 
 _bool CSound_Manager::Is_SoundFile(const _wstring& strFileName)

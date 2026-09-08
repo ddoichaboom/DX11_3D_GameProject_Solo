@@ -69,6 +69,9 @@ namespace Client
 
 		_float                          fCooldown = { 0.f };
 		_float                          fEnterBlendTime = { 0.f };
+		_float							fSphereRadius = { 0.f };
+		_float							fSphereDamage = { 0.f };
+		_float							fSphereForwardOffset = { 0.f };
 	} MONSTER_ACTION_POLICY;
 
 	typedef struct tagMonsterAnimTableDesc

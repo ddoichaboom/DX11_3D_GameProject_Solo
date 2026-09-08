@@ -7,6 +7,10 @@
 
 NS_BEGIN(Client)
 
+class CCamera_Follow;
+class CCamera_Cinematic;
+class CBoss_Monster;
+
 class CLIENT_DLL CLevel_GamePlay final : public CLevel
 {
 private:
@@ -52,6 +56,9 @@ private:
 	_bool						Move_PlayerToNavCell(_int iCellIndex);
 
 	CMonster*					Find_FirstBossMonster() const;
+	CCamera_Follow*				Find_FollowCamera() const;
+	CCamera_Cinematic*			Find_CinematicCamera() const;
+	void						Play_BossIntroCinematic(CBoss_Monster* pBossMonster) const;
 
 private:
 	SCENE_DATA					m_SceneData = {};

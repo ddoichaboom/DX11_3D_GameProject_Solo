@@ -549,7 +549,11 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
         {
         case ANIM_NOTIFY_TYPE::FOOTSTEP_L:
         case ANIM_NOTIFY_TYPE::FOOTSTEP_R:
+        {
+            if (nullptr != m_pOwner)
+                m_pOwner->Play_FootstepSound();
             break;
+        }
         case ANIM_NOTIFY_TYPE::ATTACK_HIT:
             break;
         case ANIM_NOTIFY_TYPE::COMBO_WINDOW_OPEN:
@@ -734,6 +738,18 @@ void CPlayer_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
                 m_pOwner->Set_Invincible(false);
             break;
         }
+        case ANIM_NOTIFY_TYPE::TRAIL_ON:
+        {
+            if (nullptr != m_pOwner)
+                m_pOwner->Set_WeaponTrailActive(true);
+            break;
+        }
+        case ANIM_NOTIFY_TYPE::TRAIL_OFF:
+        {
+            if (nullptr != m_pOwner)
+                m_pOwner->Set_WeaponTrailActive(false);
+            break;
+        }
 
         case ANIM_NOTIFY_TYPE::NONE:
         case ANIM_NOTIFY_TYPE::END:
@@ -854,6 +870,9 @@ void CPlayer_StateMachine::On_Transition(_uint iFrom, _uint iTo, _bool bInitial)
         return;
 
     m_bAttackHitboxActive = false;
+
+    if (nullptr != m_pOwner)
+        m_pOwner->Set_WeaponTrailActive(false);
 
     m_pOwner->Handle_ActionTransition(
         Get_PlayerActionFromStateKey(iFrom),

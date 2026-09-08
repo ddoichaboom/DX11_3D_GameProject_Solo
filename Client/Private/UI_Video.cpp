@@ -90,10 +90,16 @@ void CUI_Video::Late_Update(_float fTimeDelta)
 
 HRESULT CUI_Video::Render()
 {
+    if (nullptr != m_pVideoTexture)
+    {
+        if (FAILED(m_pVideoTexture->Upload_ReadyFrame()))
+            return E_FAIL;
+    }
+
     if (FAILED(Bind_ShaderResources()))
         return E_FAIL;
 
-    if (FAILED(m_pShaderCom->Begin(1)))     // UIPass
+    if (FAILED(m_pShaderCom->Begin(1)))
         return E_FAIL;
 
     if (FAILED(m_pVIBufferCom->Bind_Resources()))

@@ -14,6 +14,7 @@ public:
 	HRESULT						Initialize(const _tchar* pVideoPath, _bool bLoop);
 
 	HRESULT						Update(_float fTimeDelta);
+	HRESULT						Upload_ReadyFrame();
 	void						Reset();
 
 	void						Set_Loop(_bool bLoop) { m_bLoop = bLoop; }

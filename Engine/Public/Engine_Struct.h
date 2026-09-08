@@ -29,6 +29,10 @@ namespace Engine
 		float		fAspect;
 		float		fNear;
 		float		fFar;
+
+		bool		bOrthographic = { false };
+		float		fOrthoWidth = { 100.f };
+		float		fOrthoHeight = { 100.f };
 	}SHADOW_LIGHT_DESC;
 
 	typedef struct tagVertexPosition
@@ -281,6 +285,14 @@ namespace Engine
 		PROTOTYPE		eType;
 		class CBase*	pPrototype;
 	}PROTOTYPE_INFO;
+
+	typedef struct tagSoundSequence
+	{
+		vector<wstring> SoundKeys;
+		unsigned int iCurrentIndex = {};
+		float fVolume = { 1.f };
+		bool bActive = { false };
+	}SOUND_SEQUENCE;
 }
 
 #endif // Engine_Struct_h__

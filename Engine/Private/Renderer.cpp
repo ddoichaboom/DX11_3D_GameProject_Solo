@@ -5,6 +5,11 @@
 #include "Shader.h"
 #include "VIBuffer_Rect.h"
 
+namespace
+{
+	constexpr _uint SHADOW_MAP_SIZE = 4096;
+}
+
 CRenderer::CRenderer(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	: m_pDevice { pDevice }
 	, m_pContext{ pContext }
@@ -38,7 +43,7 @@ HRESULT CRenderer::Initialize()
 	if (FAILED(m_pGameInstance->Add_RenderTarget(TEXT("Target_Depth"), iWinSizeX, iWinSizeY, DXGI_FORMAT_R32G32B32A32_FLOAT, _float4(0.f, 0.f, 0.f, 0.f))))
 		return E_FAIL;
 
-	if (FAILED(m_pGameInstance->Add_RenderTarget(TEXT("Target_LightDepth"),	iWinSizeX,	iWinSizeY,	DXGI_FORMAT_R32G32B32A32_FLOAT,	_float4(1.f, 1.f, 1.f, 1.f))))
+	if (FAILED(m_pGameInstance->Add_RenderTarget(TEXT("Target_LightDepth"),	SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, DXGI_FORMAT_R32G32B32A32_FLOAT, _float4(1.f, 1.f, 1.f, 1.f))))
 		return E_FAIL;
 
 	if (FAILED(m_pGameInstance->Add_MRT(TEXT("MRT_GameObjects"), TEXT("Target_Diffuse"))))
@@ -57,6 +62,9 @@ HRESULT CRenderer::Initialize()
 		return E_FAIL;
 
 	if (FAILED(m_pGameInstance->Add_MRT(TEXT("MRT_ShadowObjects"), TEXT("Target_LightDepth"))))
+		return E_FAIL;
+
+	if (FAILED(Ready_ShadowDepthStencil_Buffer()))
 		return E_FAIL;
 
 	m_pShader = CShader::Create(
@@ -193,8 +201,10 @@ HRESULT CRenderer::Render_Priority()
 
 HRESULT CRenderer::Render_Shadow()
 {
-	if (FAILED(m_pGameInstance->Begin_MRT(TEXT("MRT_ShadowObjects"))))
+	if (FAILED(m_pGameInstance->Begin_MRT(TEXT("MRT_ShadowObjects"), m_pShadowDSV)))
 		return E_FAIL;
+
+	m_pContext->ClearDepthStencilView(m_pShadowDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
 	for (auto& pRenderObject : m_RenderObjects[ETOUI(RENDERID::SHADOW)])
 	{
@@ -360,6 +370,18 @@ HRESULT CRenderer::Render_Combined()
 	if (FAILED(m_pShader->Bind_Matrix("g_ProjMatrix", &m_ProjMatrix)))
 		return E_FAIL;
 
+	if (FAILED(m_pShader->Bind_Matrix("g_ViewMatrixInverse", m_pGameInstance->Get_Transform_Inverse(D3DTS::VIEW))))
+		return E_FAIL;
+
+	if (FAILED(m_pShader->Bind_Matrix("g_ProjMatrixInverse", m_pGameInstance->Get_Transform_Inverse(D3DTS::PROJ))))
+		return E_FAIL;
+
+	if (FAILED(m_pShader->Bind_Matrix("g_ShadowLightViewMatrix", m_pGameInstance->Get_Shadow_Transform(D3DTS::VIEW))))
+		return E_FAIL;
+
+	if (FAILED(m_pShader->Bind_Matrix("g_ShadowLightProjMatrix", m_pGameInstance->Get_Shadow_Transform(D3DTS::PROJ))))
+		return E_FAIL;
+
 	if (FAILED(m_pVIBuffer->Bind_Resources()))
 		return E_FAIL;
 
@@ -432,6 +454,38 @@ HRESULT CRenderer::Force_ViewportAlpha()
 	if (FAILED(m_pShader->Begin(ETOUI(DEFERRED::FORCE_ALPHA))))          
 		return E_FAIL;
 	if (FAILED(m_pVIBuffer->Render()))                                   
+		return E_FAIL;
+
+	return S_OK;
+}
+
+HRESULT CRenderer::Ready_ShadowDepthStencil_Buffer()
+{
+	Safe_Release(m_pShadowDSV);
+	Safe_Release(m_pShadowDSTexture);
+
+	D3D11_TEXTURE2D_DESC TextureDesc{};
+	TextureDesc.Width = SHADOW_MAP_SIZE;
+	TextureDesc.Height = SHADOW_MAP_SIZE;
+	TextureDesc.MipLevels = 1;
+	TextureDesc.ArraySize = 1;
+	TextureDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	TextureDesc.SampleDesc.Quality = 0;
+	TextureDesc.SampleDesc.Count = 1;
+	TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	TextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	TextureDesc.CPUAccessFlags = 0;
+	TextureDesc.MiscFlags = 0;
+
+	if (FAILED(m_pDevice->CreateTexture2D(&TextureDesc, nullptr, &m_pShadowDSTexture)))
+		return E_FAIL;
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc{};
+	DSVDesc.Format = TextureDesc.Format;
+	DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	DSVDesc.Texture2D.MipSlice = 0;
+
+	if (FAILED(m_pDevice->CreateDepthStencilView(m_pShadowDSTexture, &DSVDesc, &m_pShadowDSV)))
 		return E_FAIL;
 
 	return S_OK;
@@ -515,6 +569,8 @@ void CRenderer::Free()
 		RenderObjects.clear();
 	}
 
+	Safe_Release(m_pShadowDSV);
+	Safe_Release(m_pShadowDSTexture);
 	Safe_Release(m_pShader);
 	Safe_Release(m_pVIBuffer);
 	Safe_Release(m_pGameInstance);

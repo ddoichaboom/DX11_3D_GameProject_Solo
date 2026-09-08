@@ -21,6 +21,22 @@ MONSTER_ACTION_STEP  CMonster_StateMachine::Get_CurrentMonsterStep() const
     return Get_MonsterStepFromStateKey(Get_CurrentAction());
 }
 
+void CMonster_StateMachine::Get_SkillParams(_uint iStateKey, _float& fOutRadius, _float& fOutDamage, _float& fOutForwardOffset) const
+{
+    auto it = m_SkillParams.find(iStateKey);
+    if (m_SkillParams.end() == it)
+    {
+        fOutRadius = 0.f;
+        fOutDamage = 0.f;
+        fOutForwardOffset = 0.f;
+        return;
+    }
+
+    fOutRadius = it->second.fRadius;
+    fOutDamage = it->second.fDamage;
+    fOutForwardOffset = it->second.fForwardOffset;
+}
+
 HRESULT CMonster_StateMachine::Initialize(const MONSTER_ANIM_TABLE_DESC* pAnimTable)
 {
     if (nullptr == pAnimTable)
@@ -40,6 +56,16 @@ HRESULT CMonster_StateMachine::Initialize(const MONSTER_ANIM_TABLE_DESC* pAnimTa
 
         if (FAILED(Register_Policy(DstPolicy)))
             return E_FAIL;
+
+        if (SrcPolicy.fSphereRadius > 0.f || SrcPolicy.fSphereDamage > 0.f)
+        {
+            SKILL_PARAMS Params{};
+            Params.fRadius = SrcPolicy.fSphereRadius;
+            Params.fDamage = SrcPolicy.fSphereDamage;
+            Params.fForwardOffset = SrcPolicy.fSphereForwardOffset;
+
+            m_SkillParams[DstPolicy.iAction] = Params;
+        }
     }
 
     return S_OK;
@@ -87,6 +113,16 @@ void CMonster_StateMachine::OnNotify(const NOTIFY_EVENT& Event)
         case ANIM_NOTIFY_TYPE::ATTACK_HITBOX_OFF:
             if (nullptr != m_pOwner)
                 m_pOwner->On_AttackHitboxNotify(false);
+            break;
+
+        case ANIM_NOTIFY_TYPE::TRAIL_ON:
+            if (nullptr != m_pOwner)
+                m_pOwner->Set_WeaponTrailActive(true);
+            break;
+
+        case ANIM_NOTIFY_TYPE::TRAIL_OFF:
+            if (nullptr != m_pOwner)
+                m_pOwner->Set_WeaponTrailActive(false);
             break;
         }
     }

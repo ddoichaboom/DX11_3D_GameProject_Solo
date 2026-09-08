@@ -7,7 +7,11 @@ float g_fAlpha = 1.f;
 
 texture2D g_DiffuseTexture;
 texture2D g_SpecularTexture;
+texture2D g_DissolveTexture;
 float g_fHasSpecularMap;
+float g_fDissolveAmount = 0.f;
+float g_fDissolveEdgeWidth = 0.08f;
+float4 g_vDissolveEdgeColor = float4(1.f, 0.05f, 0.02f, 1.f);
 
 struct VS_IN
 {
@@ -69,6 +73,11 @@ struct PS_OUT
     float4 vDepth : SV_TARGET2;
 };
 
+struct PS_OUT_SHADOW
+{
+    float4 vLightDepth : SV_TARGET0;
+};
+
 PS_OUT PS_MAIN(PS_IN In)
 {
     PS_OUT Out;
@@ -76,11 +85,31 @@ PS_OUT PS_MAIN(PS_IN In)
     vector vMtrlDiffuse = g_DiffuseTexture.Sample(LinearSampler, In.vTexcoord);
     vMtrlDiffuse.a = 1.f;
 
+    if (g_fDissolveAmount > 0.f)
+    {
+        float fNoise = g_DissolveTexture.Sample(LinearSampler, In.vTexcoord).r;
+        float fEdge = smoothstep(g_fDissolveAmount, g_fDissolveAmount + g_fDissolveEdgeWidth, fNoise);
+
+        if (fNoise < g_fDissolveAmount)
+            discard;
+
+        vMtrlDiffuse.rgb = lerp(g_vDissolveEdgeColor.rgb, vMtrlDiffuse.rgb, fEdge);
+    }
+
     Out.vDiffuse = vMtrlDiffuse;
     float fSpecMask = g_SpecularTexture.Sample(LinearSampler, In.vTexcoord).r * g_fHasSpecularMap;
     Out.vNormal = vector(In.vNormal.xyz * 0.5f + 0.5f, fSpecMask);
     Out.vDepth = vector(In.vProjPos.z / In.vProjPos.w, In.vProjPos.w / 500.f, 0.f, 0.f);
 
+    return Out;
+}
+
+PS_OUT_SHADOW PS_MAIN_SHADOW(PS_IN In)
+{
+    PS_OUT_SHADOW Out;
+    
+    Out.vLightDepth = vector((In.vProjPos.w / 2000.f), 0.f, 0.f, 0.f);
+    
     return Out;
 }
 
@@ -104,5 +133,15 @@ technique11 DefaultTechnique
 
         VertexShader = compile vs_5_0 VS_MAIN();
         PixelShader = compile ps_5_0 PS_MAIN();
+    }
+
+    pass ShadowPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_Default, 0);
+        SetBlendState(BS_Default, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_MAIN_SHADOW();
     }
 }

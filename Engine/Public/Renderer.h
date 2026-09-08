@@ -44,6 +44,9 @@ private:
 	class CShader*				m_pShader = { nullptr };
 	class CVIBuffer_Rect*		m_pVIBuffer = { nullptr };
 
+	ID3D11Texture2D*			m_pShadowDSTexture = { nullptr };
+	ID3D11DepthStencilView*		m_pShadowDSV = { nullptr };
+
 private:
 	_float4x4					m_WorldMatrix = {};
 	_float4x4					m_ViewMatrix = {};
@@ -68,6 +71,7 @@ private:
 
 	HRESULT						Force_ViewportAlpha();
 
+	HRESULT						Ready_ShadowDepthStencil_Buffer();
 
 public:
 	static CRenderer* Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

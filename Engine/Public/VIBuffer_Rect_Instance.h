@@ -26,6 +26,7 @@ public:
 	HRESULT Set_Instances(const vector<VTXRECT_INSTANCE>& Instances);
 	HRESULT Set_Instances(const VTXRECT_INSTANCE* pInstances, _uint iNumInstances);
 	HRESULT Update_Billboard(const vector<_float4>& Positions, const _float2& vSize, const _float4& vTexInfo, const _float4& vColor, _fmatrix ViewMatrix);
+	HRESULT Update_Billboard(const vector<_float4>& Positions, const _float2& vSize, const vector<_float4>& TexInfos, const vector<_float4>& Colors, _fmatrix ViewMatrix);
 
 private:
 	_uint						m_iMaxInstanceCount = {};

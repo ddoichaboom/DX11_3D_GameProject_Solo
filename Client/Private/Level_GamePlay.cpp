@@ -16,6 +16,7 @@
 #include "Boss_Monster.h"
 #include "HUD_GamePlay.h" 
 #include "AtlasInstanceEffect.h"
+#include "DamageFont.h"
 
 static constexpr _int PLAYER_START_CELL_INDEX = { 40 };
 
@@ -23,7 +24,7 @@ static const _tchar* SCENEDATA_PATH = TEXT("../../Resources/Scenes/Map/ThroneRoo
 static const _tchar* DEFAULT_NAVDATA_PATH = TEXT("../../Resources/NavMesh/ThroneRoom.navdata");
 static const _tchar* HUD_SCENE_PATH = TEXT("../../Resources/Scenes/UI/HUD.uiscene");
 static const _tchar* THRONEROOM_CUTSCENE_VIDEO_PATH = TEXT("../../Resources/Video/ThroneRoom_CutScene.mp4");
-static const _tchar* THRONEROOM_CUTSCENE_BGM_KEY = TEXT("Bgm/Bgm_Igris_CutScene.wav");
+static const _tchar* THRONEROOM_CUTSCENE_BGM_KEY = TEXT("Bgm_Igris_CutScene.wav");
 static const _tchar* THRONEROOM_CUTSCENE_LAYER = TEXT("Layer_CutSceneUI");
 static const _tchar* THRONEROOM_CUTSCENE_OBJECT = TEXT("CutScene_ThroneRoom_Video");
 
@@ -315,7 +316,7 @@ void CLevel_GamePlay::Start_PlayerCutscenePlayback()
 	pVideo->Reset();
 	pVideo->Play();
 
-	m_pGameInstance->Play_BGM(THRONEROOM_CUTSCENE_BGM_KEY, 1.f, false);
+	m_pGameInstance->Play_BGM(THRONEROOM_CUTSCENE_BGM_KEY, 0.7f, false);
 
 	m_fPlayerCutsceneElapsed = 0.f;
 	m_bPlayerCutscenePlaying = true;
@@ -351,7 +352,12 @@ void CLevel_GamePlay::Finish_PlayerCutscene()
 
 	CBoss_Monster* pBossMonster = dynamic_cast<CBoss_Monster*>(Find_FirstBossMonster());
 	if (nullptr != pBossMonster)
+	{
 		pBossMonster->Begin_Encounter();
+		Play_BossIntroCinematic(pBossMonster);
+	}
+
+	m_pGameInstance->Play_BGM(TEXT("BGM_Battle_ThroneRoom_01.wav"), 0.4f, true);
 }
 
 HRESULT CLevel_GamePlay::Add_PlayerCutsceneVideo()
@@ -437,6 +443,82 @@ CMonster* CLevel_GamePlay::Find_FirstBossMonster() const
 	}
 
 	return nullptr;
+}
+
+CCamera_Follow* CLevel_GamePlay::Find_FollowCamera() const
+{
+	const auto* pLayers = m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+	if (nullptr == pLayers)
+		return nullptr;
+
+	auto iterLayer = pLayers->find(TEXT("Layer_Camera"));
+	if (iterLayer == pLayers->end() || nullptr == iterLayer->second)
+		return nullptr;
+
+	for (CGameObject* pObject : iterLayer->second->Get_GameObjects())
+	{
+		CCamera_Follow* pCamera = dynamic_cast<CCamera_Follow*>(pObject);
+		if (nullptr != pCamera)
+			return pCamera;
+	}
+
+	return nullptr;
+}
+
+CCamera_Cinematic* CLevel_GamePlay::Find_CinematicCamera() const
+{
+	const auto* pLayers = m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+	if (nullptr == pLayers)
+		return nullptr;
+
+	auto iterLayer = pLayers->find(TEXT("Layer_Camera"));
+	if (iterLayer == pLayers->end() || nullptr == iterLayer->second)
+		return nullptr;
+
+	for (CGameObject* pObject : iterLayer->second->Get_GameObjects())
+	{
+		CCamera_Cinematic* pCamera = dynamic_cast<CCamera_Cinematic*>(pObject);
+		if (nullptr != pCamera)
+			return pCamera;
+	}
+
+	return nullptr;
+}
+
+void CLevel_GamePlay::Play_BossIntroCinematic(CBoss_Monster* pBossMonster) const
+{
+	if (nullptr == pBossMonster)
+		return;
+
+	CCamera_Cinematic* pCinematic = Find_CinematicCamera();
+	if (nullptr == pCinematic)
+		return;
+
+	pCinematic->Set_ReturnCamera(Find_FollowCamera());
+
+	static const _char* PivotCandidates[] =
+	{
+			"Cam_Pivot_Chest",
+			"CamPivot_Chest",
+			"Pivot_Chest",
+	};
+
+	for (const _char* pPivotName : PivotCandidates)
+	{
+		CCamera_Cinematic::ATTACH_DESC Desc{};
+		Desc.eMode = CCamera_Cinematic::MODE::ATTACH_PIVOT;
+		Desc.StartAnchor.pObject = pBossMonster;
+		Desc.StartAnchor.pPartTag = TEXT("Body");
+		Desc.StartAnchor.pPivotName = pPivotName;
+		Desc.vLocalOffset = _float3(0.f, -0.45f, 6.8f);
+		Desc.vLookOffset = _float3(0.f, 0.35f, 0.f);
+		Desc.fDuration = 2.2f;
+		Desc.fFovy = XMConvertToRadians(40.f);
+		Desc.bUsePivotRotation = false;
+
+		if (SUCCEEDED(pCinematic->Play(Desc)))
+			return;
+	}
 }
 
 CLevel_GamePlay::CLevel_GamePlay(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -583,6 +665,22 @@ HRESULT CLevel_GamePlay::Ready_Lights()
 		if (FAILED(m_pGameInstance->Add_Light(LightDesc)))
 			return E_FAIL;
 	}
+
+	SHADOW_LIGHT_DESC ShadowDesc{};
+
+	ShadowDesc.vEye = _float4(-220.f, 120.f, -380.f, 1.f);
+	ShadowDesc.vAt = _float4(-130.f, 1.f, -272.f, 1.f);
+	ShadowDesc.fFovy = XMConvertToRadians(40.f);
+	ShadowDesc.fNear = 1.f;
+	ShadowDesc.fFar = 300.f;
+	ShadowDesc.fAspect = static_cast<_float>(m_pGameInstance->Get_WinSizeX()) /
+		static_cast<_float>(m_pGameInstance->Get_WinSizeY());
+	ShadowDesc.bOrthographic = false;
+	ShadowDesc.fOrthoWidth = 100.f;
+	ShadowDesc.fOrthoHeight = 100.f;
+
+	if (FAILED(m_pGameInstance->Add_ShadowLight(ShadowDesc)))
+		return E_FAIL;
 
 	return S_OK;
 }
@@ -792,6 +890,16 @@ HRESULT	 CLevel_GamePlay::Ready_Layer_UI(const _wstring& strLayerTag)
 	if (FAILED(m_pGameInstance->Add_GameObject(
 		ETOUI(LEVEL::STATIC), TEXT("Prototype_GameObject_HUD_GamePlay"),
 		ETOUI(LEVEL::GAMEPLAY), strLayerTag)))
+		return E_FAIL;
+
+	CDamageFont::DAMAGEFONT_DESC DamageDesc{};
+	DamageDesc.pTextureProtoTag = TEXT("Prototype_Component_Texture_HUD_Combo_Digit");
+	DamageDesc.iAtlasCols = 10;
+	DamageDesc.iAtlasRows = 1;
+	DamageDesc.iMaxInstanceCount = 128;
+	if (FAILED(m_pGameInstance->Add_GameObject(
+		ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_DamageFont"),
+		ETOUI(LEVEL::GAMEPLAY), TEXT("Layer_Effect"), &DamageDesc)))
 		return E_FAIL;
 
 	return S_OK;

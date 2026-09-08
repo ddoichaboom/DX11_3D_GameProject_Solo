@@ -220,6 +220,9 @@ HRESULT CTarget_Manager::Resize_RenderTargets(_uint iWidth, _uint iHeight)
 
     for (auto& Pair : m_RenderTargets)
     {
+        if (TEXT("Target_LightDepth") == Pair.first)
+            continue;
+
         if (nullptr != Pair.second)
         {
             if (FAILED(Pair.second->Resize(iWidth, iHeight)))

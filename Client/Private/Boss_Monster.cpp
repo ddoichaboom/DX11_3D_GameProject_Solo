@@ -4,8 +4,13 @@
 #include "NavigationAgent.h"
 #include "NavMesh.h"
 #include "Transform_3D.h"
+#include "Collider.h"
 #include "Player.h"
 #include "Body_Monster.h"
+#include "HUD_GamePlay.h"
+#include "AreaAttackTelegraph.h"
+#include "BossSlashProjectile.h"
+#include "Layer.h"
 
 CBoss_Monster::CBoss_Monster(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
     : CMonster{ pDevice, pContext }
@@ -38,10 +43,10 @@ HRESULT CBoss_Monster::Initialize(void* pArg)
         Desc.fRotationPerSec = XMConvertToRadians(360.f);
 
     if (0.f == Desc.fMaxHP)
-        Desc.fMaxHP = 1000.f;
+        Desc.fMaxHP = 30000.f;
     
     if (0.f == Desc.fMaxBreak)
-        Desc.fMaxBreak = 500.f;
+        Desc.fMaxBreak = 10000.f;
 
     Desc.bHasBreak = true;
 
@@ -54,6 +59,9 @@ HRESULT CBoss_Monster::Initialize(void* pArg)
     m_fMeleeRange = 15.0f;
     m_fMidRange = 30.0f;
     m_fLongRange = 50.0f;
+
+    if (FAILED(Ready_SkillCollider()))
+        return E_FAIL;
 
     return S_OK;
 }
@@ -79,6 +87,12 @@ void CBoss_Monster::Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_
 {
     __super::Handle_ActionTransition(eFromAction, eFromStep, eToAction, eToStep, bInitial);
 
+    if (false == bInitial)
+        Play_MonsterActionSound(eToAction, eToStep);
+
+    if (eFromAction != eToAction || eFromStep != eToStep)
+        Enable_SkillCollider(false);
+
     if (MONSTER_ACTION::SKILL_01 == eToAction && MONSTER_ACTION_STEP::NONE == eToStep)
     {
         Begin_Skill01Dash(Resolve_Target());
@@ -99,6 +113,19 @@ void CBoss_Monster::Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_
         Reset_AreaAttack();
         m_iSkillAreaCombo = 0;
     }
+
+    if (MONSTER_ACTION::SKILL_11 == eToAction && MONSTER_ACTION::SKILL_11 != eFromAction)
+    {
+        Reset_AreaAttack();
+        Begin_PendingAreaAttack(Make_CircleArea(
+            12.0f,
+            4.0f,
+            15.f,
+            m_fSkill11TelegraphDuration));
+    }
+
+    if (MONSTER_ACTION::SKILL_11 == eFromAction && MONSTER_ACTION::SKILL_11 != eToAction)
+        Reset_AreaAttack();
 }
 
 void CBoss_Monster::Update(_float fTimeDelta)
@@ -124,10 +151,19 @@ void CBoss_Monster::Update(_float fTimeDelta)
     Tick_AreaAttack(fTimeDelta);
 }
 
+void CBoss_Monster::Late_Update(_float fTimeDelta)
+{
+    __super::Late_Update(fTimeDelta);
+
+    Update_SkillCollider();
+}
+
 MONSTER_ACTION CBoss_Monster::Select_AIAction(CGameObject* pTarget, _float fDistance)
 {
     if (false == m_bEncounterStarted || nullptr == pTarget)
         return MONSTER_ACTION::IDLE;
+
+    Track_BattleRange(fDistance);
 
     if (true == m_bPostCrashPatternPending)
     {
@@ -145,69 +181,122 @@ MONSTER_ACTION CBoss_Monster::Select_AIAction(CGameObject* pTarget, _float fDist
         Face_TargetImmediately(pTarget);
         m_bOpeningSkillUsed = true;
         Start_PatternCooldown(MONSTER_ACTION::SKILL_01);
+        Commit_SelectedPattern(MONSTER_ACTION::SKILL_01);
         return MONSTER_ACTION::SKILL_01;
     }
+
+    struct PATTERN_CANDIDATE
+    {
+        MONSTER_ACTION eAction = { MONSTER_ACTION::END };
+        _float         fScore = { 0.f };
+    };
+
+    PATTERN_CANDIDATE Candidates[8]{};
+    _uint iNumCandidates = 0;
+
+    auto AddCandidate = [&](MONSTER_ACTION eAction, _float fScore)
+        {
+            if (false == Is_PatternReady(eAction))
+                return;
+
+            for (_uint i = 0; i < iNumCandidates; ++i)
+            {
+                if (Candidates[i].eAction == eAction)
+                {
+                    Candidates[i].fScore += fScore;
+                    return;
+                }
+            }
+
+            if (iNumCandidates >= _countof(Candidates))
+                return;
+
+            Candidates[iNumCandidates].eAction = eAction;
+            Candidates[iNumCandidates].fScore = fScore;
+            ++iNumCandidates;
+        };
 
     if (fDistance <= m_fMeleeRange)
     {
         Face_TargetImmediately(pTarget);
 
-        if (Is_PatternReady(MONSTER_ACTION::SKILL_04))
-        {
-            Start_PatternCooldown(MONSTER_ACTION::SKILL_04);
-            return MONSTER_ACTION::SKILL_04;
-        }
+        AddCandidate(MONSTER_ACTION::SKILL_04, 80.f);
+        AddCandidate(MONSTER_ACTION::BASIC_ATTACK_02, 55.f);
+        AddCandidate(MONSTER_ACTION::BASIC_ATTACK_01, 35.f);
 
-        if (Is_PatternReady(MONSTER_ACTION::BASIC_ATTACK_02))
-        {
-            Start_PatternCooldown(MONSTER_ACTION::BASIC_ATTACK_02);
-            return MONSTER_ACTION::BASIC_ATTACK_02;
-        }
+        if (m_iMeleePressureCount >= 2)
+            AddCandidate(MONSTER_ACTION::SKILL_13, 55.f);
 
-        Start_PatternCooldown(MONSTER_ACTION::BASIC_ATTACK_01);
-        return MONSTER_ACTION::BASIC_ATTACK_01;
+        if (m_iMeleePressureCount >= 3)
+            AddCandidate(MONSTER_ACTION::SKILL_11, 45.f);
+
+        if (m_iMeleePressureCount >= 4)
+            AddCandidate(MONSTER_ACTION::SKILL_10, 25.f);
     }
-
-    if (fDistance <= m_fMidRange)
+    else if (fDistance <= m_fMidRange)
     {
         Face_TargetImmediately(pTarget);
 
-        if (Is_PatternReady(MONSTER_ACTION::SKILL_13))
-        {
-            Start_PatternCooldown(MONSTER_ACTION::SKILL_13);
-            return MONSTER_ACTION::SKILL_13;
-        }
+        AddCandidate(MONSTER_ACTION::SKILL_13, 80.f);
+        AddCandidate(MONSTER_ACTION::SKILL_05, 65.f);
+        AddCandidate(MONSTER_ACTION::SKILL_01, 40.f);
 
-        if (Is_PatternReady(MONSTER_ACTION::SKILL_05))
-        {
-            Start_PatternCooldown(MONSTER_ACTION::SKILL_05);
-            return MONSTER_ACTION::SKILL_05;
-        }
+        if (m_iSameRangeRepeatCount >= 2)
+            AddCandidate(MONSTER_ACTION::SKILL_11, 35.f);
     }
-
-    if (fDistance <= m_fLongRange)
+    else if (fDistance <= m_fLongRange)
     {
         Face_TargetImmediately(pTarget);
 
-        if (Is_PatternReady(MONSTER_ACTION::SKILL_01))
-        {
-            Start_PatternCooldown(MONSTER_ACTION::SKILL_01);
-            return MONSTER_ACTION::SKILL_01;
-        }
+        AddCandidate(MONSTER_ACTION::SKILL_01, 75.f);
+        AddCandidate(MONSTER_ACTION::SKILL_06, 70.f);
+        AddCandidate(MONSTER_ACTION::SKILL_05, 45.f);
 
-        if (fDistance > m_fMidRange && Is_PatternReady(MONSTER_ACTION::SKILL_06))
-        {
-            Start_PatternCooldown(MONSTER_ACTION::SKILL_06);
-            return MONSTER_ACTION::SKILL_06;
-        }
+        if (m_iRangedPressureCount >= 2)
+            AddCandidate(MONSTER_ACTION::SKILL_01, 25.f);
+    }
 
+    if (0 == iNumCandidates)
+        return MONSTER_ACTION::IDLE;
 
-        if (Is_PatternReady(MONSTER_ACTION::SKILL_05))
+    for (_uint i = 0; i < iNumCandidates; ++i)
+    {
+        MONSTER_ACTION eAction = Candidates[i].eAction;
+
+        if (m_eLastNonIdleAction == eAction)
+            Candidates[i].fScore -= 80.f;
+
+        if (m_ePrevNonIdleAction == eAction)
+            Candidates[i].fScore -= 25.f;
+
+        if (true == m_bLastPatternWasArea && true == Is_AreaPattern(eAction))
+            Candidates[i].fScore -= 60.f;
+
+        if (true == m_bLastPatternWasProjectile && true == Is_ProjectilePattern(eAction))
+            Candidates[i].fScore -= 70.f;
+
+        if (m_iSameRangeRepeatCount >= 3 && MONSTER_ACTION::BASIC_ATTACK_01 == eAction)
+            Candidates[i].fScore -= 20.f;
+    }
+
+    MONSTER_ACTION eBestAction = MONSTER_ACTION::END;
+    _float fBestScore = -FLT_MAX;
+
+    for (_uint i = 0; i < iNumCandidates; ++i)
+    {
+        if (Candidates[i].fScore > fBestScore)
         {
-            Start_PatternCooldown(MONSTER_ACTION::SKILL_05);
-            return MONSTER_ACTION::SKILL_05;
+            fBestScore = Candidates[i].fScore;
+            eBestAction = Candidates[i].eAction;
         }
     }
+
+    if (MONSTER_ACTION::END == eBestAction || fBestScore <= 0.f)
+        return MONSTER_ACTION::IDLE;
+
+    Start_PatternCooldown(eBestAction);
+    Commit_SelectedPattern(eBestAction);
+    return eBestAction;
 
     return MONSTER_ACTION::IDLE;
 }
@@ -284,6 +373,50 @@ void CBoss_Monster::On_AttackHitboxNotify(_bool bActive)
         return;
     }
 
+    if (MONSTER_ACTION::SKILL_06 == eAction)
+    {
+        if (true == bActive)
+            Spawn_Skill06SlashProjectile();
+
+        __super::On_AttackHitboxNotify(false);
+        return;
+    }
+
+    if (MONSTER_ACTION::SKILL_11 == eAction)
+    {
+        if (true == bActive)
+            Resolve_PendingAreaAttack();
+        else
+            __super::On_AttackHitboxNotify(false);
+
+        return;
+    }
+
+    _float fRadius = 0.f;
+    _float fDamage = 0.f;
+    _float fOffset = 0.f;
+
+    const _uint iStateKey = Make_MonsterStateKey(eAction, eStep);
+    m_pStateMachine->Get_SkillParams(iStateKey, fRadius, fDamage, fOffset);
+
+    if (fRadius > 0.f || fDamage > 0.f)
+    {
+        if (true == bActive)
+        {
+            Set_SkillColliderRadius(fRadius);
+            Set_SkillColliderDamage(fDamage);
+            Set_SkillColliderForwardOffset(fOffset);
+            Enable_SkillCollider(true);
+        }
+        else
+        {
+            Enable_SkillCollider(false);
+        }
+
+        __super::On_AttackHitboxNotify(false);
+        return;
+    }
+
     if (false == bActive)
     {
         __super::On_AttackHitboxNotify(false);
@@ -296,12 +429,193 @@ void CBoss_Monster::On_AttackHitboxNotify(_bool bActive)
         Begin_AreaAttack(Make_CircleArea(6.5f, 4.0f, 10.f));
         break;
 
+    default:
+        __super::On_AttackHitboxNotify(true);
+        break;
+    }
+}
+
+HRESULT CBoss_Monster::Ready_SkillCollider()
+{
+    m_pSkillCollider = CCollider::Create(m_pDevice, m_pContext);
+    if (nullptr == m_pSkillCollider)
+        return E_FAIL;
+
+    CCollider::COLLIDER_DESC Desc{};
+    Desc.eBoundingType = COLLIDER::SPHERE;
+    Desc.eGroup = COLLISION_GROUP::MONSTER_ATTACK;
+    Desc.vCenter = _float3(0.f, 0.9f, 0.f);
+    Desc.vSize = _float3(m_fSkillColliderRadius, 0.f, 0.f);
+    Desc.pOwner = this;
+
+    if (FAILED(m_pSkillCollider->Initialize(&Desc)))
+    {
+        Safe_Release(m_pSkillCollider);
+        return E_FAIL;
+    }
+
+    m_pSkillCollider->Set_OnHitEnter([this](CCollider* pOther)
+        {
+            On_SkillColliderHit(pOther);
+        });
+
+    m_pSkillCollider->Set_OnHitStay([this](CCollider* pOther)
+        {
+            On_SkillColliderHit(pOther);
+        });
+
+    return S_OK;
+}
+
+void CBoss_Monster::Enable_SkillCollider(_bool bEnable)
+{
+    if (true == bEnable && false == m_bSkillColliderActive)
+        m_SkillHitTargets.clear();
+
+    m_bSkillColliderActive = bEnable;
+}
+
+void CBoss_Monster::Set_SkillColliderRadius(_float fRadius)
+{
+    if (nullptr == m_pSkillCollider)
+        return;
+
+    m_pSkillCollider->Set_Radius(fRadius);
+    m_fSkillColliderRadius = fRadius;
+}
+
+void CBoss_Monster::Update_SkillCollider()
+{
+    if (nullptr == m_pSkillCollider || nullptr == m_pTransformCom)
+        return;
+
+    if (false == m_bSkillColliderActive)
+        return;
+
+    _vector vLook = m_pTransformCom->Get_State(STATE::LOOK);
+    vLook = XMVector3Normalize(XMVectorSetY(vLook, 0.f));
+
+    _vector vPos = m_pTransformCom->Get_State(STATE::POSITION);
+    _vector vSpherePos = XMVectorAdd(vPos, XMVectorScale(vLook, m_fSkillColliderForwardOffset));
+
+    _matrix mWorld = XMMatrixIdentity();
+    mWorld.r[3] = vSpherePos;
+
+    m_pSkillCollider->Update(mWorld);
+    m_pSkillCollider->Register();
+}
+
+void CBoss_Monster::On_SkillColliderHit(CCollider* pOther)
+{
+    if (false == m_bSkillColliderActive)
+        return;
+
+    if (nullptr == pOther)
+        return;
+
+    if (COLLISION_GROUP::PLAYER_BODY != pOther->Get_Group())
+        return;
+
+    CGameObject* pOwner = pOther->Get_Owner();
+    if (nullptr == pOwner)
+        return;
+
+    if (m_SkillHitTargets.end() != m_SkillHitTargets.find(pOwner))
+        return;
+
+    m_SkillHitTargets.insert(pOwner);
+
+    CPlayer* pPlayer = dynamic_cast<CPlayer*>(pOwner);
+    if (nullptr == pPlayer)
+        return;
+
+    pPlayer->Take_Damage(m_fSkillColliderDamage, this);
+}
+
+void CBoss_Monster::Spawn_Skill06SlashProjectile()
+{
+    if (nullptr == m_pGameInstance || nullptr == m_pTransformCom)
+        return;
+
+    _vector vOwnerPos = m_pTransformCom->Get_State(STATE::POSITION);
+    _vector vLook = XMVectorSetY(m_pTransformCom->Get_State(STATE::LOOK), 0.f);
+
+    CGameObject* pTarget = Resolve_Target();
+    if (nullptr != pTarget && nullptr != pTarget->Get_Transform())
+    {
+        _vector vTargetPos = pTarget->Get_Transform()->Get_State(STATE::POSITION);
+        _vector vTargetDir = XMVectorSetY(XMVectorSubtract(vTargetPos, vOwnerPos), 0.f);
+
+        if (XMVectorGetX(XMVector3LengthSq(vTargetDir)) > 0.0001f)
+            vLook = vTargetDir;
+    }
+
+    if (XMVectorGetX(XMVector3LengthSq(vLook)) <= 0.0001f)
+        return;
+
+    vLook = XMVector3Normalize(vLook);
+
+    CTransform_3D* pTransform = static_cast<CTransform_3D*>(m_pTransformCom);
+    pTransform->Rotate_Toward_XZ(vLook, XM_PI);
+
+    _vector vStart = vOwnerPos;
+    vStart = XMVectorAdd(vStart, XMVectorScale(vLook, 2.8f));
+    vStart = XMVectorAdd(vStart, XMVectorSet(0.f, 1.25f, 0.f, 0.f));
+
+    CBossSlashProjectile::BOSS_SLASH_PROJECTILE_DESC Desc{};
+    Desc.pOwnerMonster = this;
+    Desc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Slash_IgrisProjectile");
+    XMStoreFloat3(&Desc.vStartPosition, vStart);
+    XMStoreFloat3(&Desc.vDirection, vLook);
+    Desc.vSize = _float2(5.0f, 1.8f);
+    Desc.fSpeed = 38.f;
+    Desc.fLifeTime = 1.25f;
+    Desc.fDamage = 400.f;
+    Desc.fColliderRadius = 2.4f;
+    Desc.bPierce = false;
+
+    (void)m_pGameInstance->Add_GameObject(
+        ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_BossSlashProjectile"),
+        ETOUI(LEVEL::GAMEPLAY), TEXT("Layer_Effect"), &Desc);
+}
+
+void CBoss_Monster::Play_MonsterActionSound(MONSTER_ACTION eAction, MONSTER_ACTION_STEP eStep)
+{
+    if (nullptr == m_pGameInstance)
+        return;
+
+    switch (eAction)
+    {
+    case MONSTER_ACTION::BASIC_ATTACK_01:
+    case MONSTER_ACTION::BASIC_ATTACK_02:
+        m_pGameInstance->Play_Sound(TEXT("Igris_Boss_S_WeaponSkill_1-2.wav"), SOUND_CHANNEL::MONSTER, 0.8f, false);
+        break;
+
+    case MONSTER_ACTION::SKILL_02:
+        m_pGameInstance->Play_Sound(TEXT("Igris_Boss_S_Skill_2-2_St.wav"), SOUND_CHANNEL::MONSTER, 0.85f, false);
+        break;
+
+    case MONSTER_ACTION::SKILL_04:
+        m_pGameInstance->Play_Sound(TEXT("Igris_Boss_S_Skill_4-2_St.wav"), SOUND_CHANNEL::MONSTER, 0.85f, false);
+        break;
+
+    case MONSTER_ACTION::SKILL_05:
+        m_pGameInstance->Play_Sound(TEXT("Igris_Boss_S_Skill_5-1_St.wav"), SOUND_CHANNEL::MONSTER, 0.85f, false);
+        break;
+
     case MONSTER_ACTION::SKILL_11:
-        Begin_AreaAttack(Make_CircleArea(12.0f, 4.0f, 15.f));
+        m_pGameInstance->Play_Sound(TEXT("Igris_Boss_S_Skill_11_St.wav"), SOUND_CHANNEL::MONSTER, 0.85f, false);
+        break;
+
+    case MONSTER_ACTION::SKILL_03:
+        m_pGameInstance->Play_Sound(TEXT("Shadow_Igris_Boss_S_Skill_3-2.wav"), SOUND_CHANNEL::MONSTER, 0.85f, false);
+        break;
+
+    case MONSTER_ACTION::DEATH:
+        m_pGameInstance->Play_Sound(TEXT("Igris_Boss_S_Death_1-2_St.wav"), SOUND_CHANNEL::MONSTER, 0.9f, false);
         break;
 
     default:
-        __super::On_AttackHitboxNotify(true);
         break;
     }
 }
@@ -328,7 +642,18 @@ MONSTER_ACTION CBoss_Monster::Select_PostCrashPattern(CGameObject* pTarget, _flo
     for (_uint i = 0; i < _countof(Candidates); ++i)
     {
         if (true == Candidates[i].bAllowed && true == Is_PatternReady(Candidates[i].eAction))
+        {
+            if (m_eLastNonIdleAction == Candidates[i].eAction)
+                Candidates[i].fWeight *= 0.25f;
+
+            if (true == m_bLastPatternWasArea && true == Is_AreaPattern(Candidates[i].eAction))
+                Candidates[i].fWeight *= 0.45f;
+
+            if (true == m_bLastPatternWasProjectile && true == Is_ProjectilePattern(Candidates[i].eAction))
+                Candidates[i].fWeight *= 0.35f;
+
             fTotalWeight += Candidates[i].fWeight;
+        }
     }
 
     if (fTotalWeight <= 0.f)
@@ -349,6 +674,7 @@ MONSTER_ACTION CBoss_Monster::Select_PostCrashPattern(CGameObject* pTarget, _flo
         {
             Face_TargetImmediately(pTarget);
             Start_PatternCooldown(Candidates[i].eAction);
+            Commit_SelectedPattern(Candidates[i].eAction);
             return Candidates[i].eAction;
         }
     }
@@ -477,6 +803,7 @@ void CBoss_Monster::Reset_AreaAttack()
     m_PendingAreaAttack = {};
     m_bAreaAttackPending = false;
     m_fAreaAttackElapsed = 0.f;
+    Stop_AreaTelegraph();
 }
 
 AREA_ATTACK_DESC CBoss_Monster::Make_CircleArea(_float fRadius, _float fHeight, _float fDamage, _float fFillDuration) const
@@ -515,6 +842,8 @@ void CBoss_Monster::Begin_PendingAreaAttack(const AREA_ATTACK_DESC& Desc)
     m_PendingAreaAttack.fFillDuration = 0.f;
     m_bAreaAttackPending = true;
     m_fAreaAttackElapsed = 0.f;
+
+    Play_AreaTelegraph(Desc);
 }
 
 void CBoss_Monster::Resolve_PendingAreaAttack()
@@ -621,6 +950,64 @@ void CBoss_Monster::Restart_Skill10Loop()
     m_pBody->Play_Action(MONSTER_ACTION::SKILL_10, MONSTER_ACTION_STEP::LOOP, MONSTER_PHASE::COMMON);
 }
 
+void CBoss_Monster::Play_AreaTelegraph(const AREA_ATTACK_DESC& Desc)
+{
+    CAreaAttackTelegraph* pTelegraph = Find_AreaTelegraph();
+    if (nullptr == pTelegraph || nullptr == m_pTransformCom)
+        return;
+
+    _vector vOwnerPos = m_pTransformCom->Get_State(STATE::POSITION);
+    _vector vRight = XMVector3Normalize(XMVectorSetY(m_pTransformCom->Get_State(STATE::RIGHT), 0.f));
+    _vector vLook = XMVector3Normalize(XMVectorSetY(m_pTransformCom->Get_State(STATE::LOOK), 0.f));
+    _vector vUp = XMVectorSet(0.f, 1.f, 0.f, 0.f);
+
+    _vector vCenter = vOwnerPos;
+    vCenter = XMVectorAdd(vCenter, XMVectorScale(vRight, Desc.vOffset.x));
+    vCenter = XMVectorAdd(vCenter, XMVectorScale(vUp, Desc.vOffset.y));
+    vCenter = XMVectorAdd(vCenter, XMVectorScale(vLook, Desc.vOffset.z));
+
+    _float3 vCenterFloat{};
+    XMStoreFloat3(&vCenterFloat, vCenter);
+
+    const _float fDuration = (Desc.fFillDuration > 0.f) ? Desc.fFillDuration : m_fSkill10TelegraphDuration;
+    pTelegraph->Play(Desc, vCenterFloat, fDuration);
+}
+
+void CBoss_Monster::Stop_AreaTelegraph()
+{
+    CAreaAttackTelegraph* pTelegraph = Find_AreaTelegraph();
+    if (nullptr != pTelegraph)
+        pTelegraph->Stop();
+}
+
+CAreaAttackTelegraph* CBoss_Monster::Find_AreaTelegraph() const
+{
+    if (nullptr == m_pGameInstance)
+        return nullptr;
+
+    const map<const _wstring, CLayer*>* pLayers = m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+    if (nullptr == pLayers)
+        return nullptr;
+
+    auto iterLayer = pLayers->find(TEXT("Layer_Effect"));
+    if (pLayers->end() == iterLayer || nullptr == iterLayer->second)
+        return nullptr;
+
+    const list<CGameObject*>& Objects = iterLayer->second->Get_GameObjects();
+    for (CGameObject* pObject : Objects)
+    {
+        if (nullptr == pObject)
+            continue;
+
+        if (pObject->Get_Name() != TEXT("AreaAttackTelegraph_Skill10"))
+            continue;
+
+        return dynamic_cast<CAreaAttackTelegraph*>(pObject);
+    }
+
+    return nullptr;
+}
+
 void CBoss_Monster::Begin_Skill01Dash(CGameObject* pTarget)
 {
     End_Skill01Dash();
@@ -679,6 +1066,72 @@ void CBoss_Monster::End_Skill01Dash()
     m_vSkill01DashTargetPosition = {};
 }
 
+void CBoss_Monster::Track_BattleRange(_float fDistance)
+{
+    _int iRangeBand = 3;
+
+    if (fDistance <= m_fMeleeRange)
+        iRangeBand = 0;
+    else if (fDistance <= m_fMidRange)
+        iRangeBand = 1;
+    else if (fDistance <= m_fLongRange)
+        iRangeBand = 2;
+
+    if (m_iLastRangeBand == iRangeBand)
+        ++m_iSameRangeRepeatCount;
+    else
+        m_iSameRangeRepeatCount = 0;
+
+    m_iLastRangeBand = iRangeBand;
+
+    if (0 == iRangeBand)
+    {
+        ++m_iMeleePressureCount;
+        m_iRangedPressureCount = 0;
+    }
+    else if (2 == iRangeBand)
+    {
+        ++m_iRangedPressureCount;
+        m_iMeleePressureCount = 0;
+    }
+    else if (1 == iRangeBand)
+    {
+        if (m_iMeleePressureCount > 0)
+            --m_iMeleePressureCount;
+
+        if (m_iRangedPressureCount > 0)
+            --m_iRangedPressureCount;
+    }
+    else
+    {
+        m_iMeleePressureCount = 0;
+        m_iRangedPressureCount = 0;
+    }
+}
+
+void CBoss_Monster::Commit_SelectedPattern(MONSTER_ACTION eAction)
+{
+    if (MONSTER_ACTION::END == eAction || MONSTER_ACTION::IDLE == eAction)
+        return;
+
+    m_ePrevNonIdleAction = m_eLastNonIdleAction;
+    m_eLastNonIdleAction = eAction;
+    m_bLastPatternWasArea = Is_AreaPattern(eAction);
+    m_bLastPatternWasProjectile = Is_ProjectilePattern(eAction);
+}
+
+_bool CBoss_Monster::Is_AreaPattern(MONSTER_ACTION eAction) const
+{
+    return MONSTER_ACTION::SKILL_10 == eAction ||
+        MONSTER_ACTION::SKILL_11 == eAction ||
+        MONSTER_ACTION::SKILL_04 == eAction;
+}
+
+_bool CBoss_Monster::Is_ProjectilePattern(MONSTER_ACTION eAction) const
+{
+    return MONSTER_ACTION::SKILL_06 == eAction;
+}
+
 void CBoss_Monster::Tick_PatternCooldowns(_float fTimeDelta)
 {
     for (_uint i = 0; i < static_cast<_uint>(MONSTER_ACTION::END); ++i)
@@ -716,31 +1169,31 @@ _float CBoss_Monster::Get_PatternCooldown(MONSTER_ACTION eAction) const
     switch (eAction)
     {
     case MONSTER_ACTION::BASIC_ATTACK_01:
-        return 1.1f;
+        return 1.0f;
 
     case MONSTER_ACTION::BASIC_ATTACK_02:
-        return 4.0f;
+        return 4.5f;
 
     case MONSTER_ACTION::SKILL_01:
-        return 13.0f;
+        return 16.0f;
 
     case MONSTER_ACTION::SKILL_04:
-        return 8.0f;
+        return 12.0f;
 
     case MONSTER_ACTION::SKILL_05:
-        return 9.0f;
+        return 13.0f;
 
     case MONSTER_ACTION::SKILL_06:
-        return 10.0f;
+        return 15.0f;
 
     case MONSTER_ACTION::SKILL_10:
-        return 16.0f;
+        return 24.0f;
 
     case MONSTER_ACTION::SKILL_11:
-        return 16.0f;
+        return 22.0f;
 
     case MONSTER_ACTION::SKILL_13:
-        return 14.0f;
+        return 18.0f;
 
     default:
         return 0.f;
@@ -822,5 +1275,10 @@ CGameObject* CBoss_Monster::Clone(void* pArg)
 
 void CBoss_Monster::Free()
 {
+    if (nullptr != m_pSkillCollider)
+        m_pSkillCollider->Clear_Callbacks();
+
+    Safe_Release(m_pSkillCollider);
+
     __super::Free();
 }

@@ -14,6 +14,7 @@ NS_BEGIN(Client)
 
 class CBody_Player;
 class CWeapon;
+class CWeaponTrailEffect;
 class CIntentResolver;
 class CPlayer_StateMachine;
 class CMonster;
@@ -107,6 +108,8 @@ public:
 
     void                    Set_ParryWindow(_bool bActive) { m_bParryWindow = bActive; }
     _bool                   Is_ParryWindow() const { return m_bParryWindow; }
+    void                    Set_WeaponTrailActive(_bool bActive);
+    void                    Play_FootstepSound();
     void                    On_DamageBlocked(class CMonster* pAttacker);
 
     _bool                   Is_QTEWindowActive() const { return false == m_QTEWindows.empty(); }
@@ -121,6 +124,8 @@ private:
     CBody_Player*           m_pBody = { nullptr };
     CWeapon*                m_pWeaponR = { nullptr };
     CWeapon*                m_pWeaponL = { nullptr };
+    CWeaponTrailEffect*     m_pWeaponTrailR = { nullptr };
+    CWeaponTrailEffect*     m_pWeaponTrailL = { nullptr };
     CIntentResolver*        m_pIntentResolver = { nullptr };
     CPlayer_StateMachine*   m_pStateMachine = { nullptr };
     CCollider*              m_pCollider = { nullptr };
@@ -131,6 +136,7 @@ private:
 
 private:
     HRESULT                 Ready_PartObjects();
+    HRESULT                 Ready_WeaponTrailEffects();
     HRESULT                 Ready_StateMachine();
     HRESULT                 Ready_Components(const PLAYER_DESC& Desc);
 
@@ -167,6 +173,9 @@ private:
 
     void                    Refresh_WeaponVisibility();
     void                    Update_WeaponHitboxes();
+    void                    Tick_WeaponTrailEffects(_float fTimeDelta);
+    _float4                 Get_WeaponTrailColor(EQUIPPED_WEAPON_ID eWeapon) const;
+    EQUIPPED_WEAPON_ID      Resolve_HandWeapon(_bool bLeftHand) const;
 
     void                    On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther);
 
@@ -188,6 +197,7 @@ private:
     class CMonster*         Find_Target(_float fSearchRadius, _float fConeAngleDegrees) const;
     void                    Teleport_BehindTarget(class CMonster* pTarget);
 
+    void                    Play_PlayerActionSound(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep);
 
 
 private:
@@ -217,8 +227,8 @@ private:
     _bool                   m_bPrevAttackHitboxActive = { false };
     _uint                   m_iPrevAttackHitboxWindowSerial = { 0 };
 
-    _float                  m_fMaxHP = { 100.f };
-    _float                  m_fCurrentHP = { 100.f };
+    _float                  m_fMaxHP = { 5000.f };
+    _float                  m_fCurrentHP = { 5000.f };
 
     _float                  m_fMaxMP = { 100.f };
     _float                  m_fCurrentMP = { 100.f };
@@ -226,7 +236,7 @@ private:
     static constexpr _uint  BODY_BLOCK_MAX_CANDIDATE_CELLS = { 16 };
     static constexpr _float WEAPON_SWAP_COOLDOWN = { 5.0f };
     static constexpr _int   SKILL_SLOT_COUNT = ETOI(SKILL_SLOT::END);
-    static constexpr _float SKILL_COOLDOWN[SKILL_SLOT_COUNT] = { 5.0f, 5.0f, 5.0f, 8.0f };
+    static constexpr _float SKILL_COOLDOWN[SKILL_SLOT_COUNT] = { 5.0f, 8.0f, 10.0f, 20.0f };
 
     _float                  m_fWeaponSwapCooldownTimer = { 0.f };
     _float                  m_fSkillCooldown[SKILL_SLOT_COUNT] = {};

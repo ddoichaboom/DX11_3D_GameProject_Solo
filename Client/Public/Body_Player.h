@@ -38,6 +38,8 @@ public:
     virtual void                        Late_Update(_float fTimeDelta) override;
     virtual HRESULT                     Render() override;
 
+    virtual HRESULT                     Render_Shadow() override;
+
 public:
     HRESULT                             Play_Action(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep = CHARACTER_ACTION_STEP::NONE);
     void                                Set_Listener(INotifyListener* pListener);
@@ -70,6 +72,7 @@ private:
 private:
     HRESULT                             Ready_Components();
     HRESULT                             Bind_ShaderResources();
+    HRESULT                             Bind_ShadowResources();
 
     HRESULT                             Ready_AnimationTable();
     HRESULT                             Register_AnimationClips();

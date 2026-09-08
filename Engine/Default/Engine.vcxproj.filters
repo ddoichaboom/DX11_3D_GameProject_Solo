@@ -127,18 +127,6 @@
     <Filter Include="07. Component\SpringArm">
       <UniqueIdentifier>{78fd9a44-dc6e-40f5-84ed-9ec02ab6fb5f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="07. Component\Navigation">
-      <UniqueIdentifier>{1215de83-97e3-460d-9c7a-878ff4995405}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="07. Component\Navigation\Cell">
-      <UniqueIdentifier>{732b6fb2-d572-4878-a8b9-215e6aa15744}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="07. Component\Navigation\NavMesh">
-      <UniqueIdentifier>{6f8d3ec9-3cde-47c0-b75b-f993021f509b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="07. Component\Navigation\NavigationAgent">
-      <UniqueIdentifier>{8ddc9094-5402-4f11-8173-90e82fc9d243}</UniqueIdentifier>
-    </Filter>
     <Filter Include="07. Component\VIBuffer\NavMesh">
       <UniqueIdentifier>{775a8ff4-19e1-4cbc-ae05-2912253afb6a}</UniqueIdentifier>
     </Filter>
@@ -214,6 +202,21 @@
     <Filter Include="16. Shadow">
       <UniqueIdentifier>{72e387d3-5eaa-4b4b-9991-a381ccde4377}</UniqueIdentifier>
     </Filter>
+    <Filter Include="07. Component\VIBuffer\Instance\Rect">
+      <UniqueIdentifier>{08fa78f1-3e45-482e-b340-52147cdfc97d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Navigation">
+      <UniqueIdentifier>{1215de83-97e3-460d-9c7a-878ff4995405}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Navigation\Cell">
+      <UniqueIdentifier>{732b6fb2-d572-4878-a8b9-215e6aa15744}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Navigation\NavMesh">
+      <UniqueIdentifier>{6f8d3ec9-3cde-47c0-b75b-f993021f509b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Navigation\NavigationAgent">
+      <UniqueIdentifier>{8ddc9094-5402-4f11-8173-90e82fc9d243}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Private\Base.cpp">
@@ -247,9 +250,6 @@
       <Filter>07. Component\VIBuffer</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\VIBuffer_Rect.cpp">
-      <Filter>07. Component\VIBuffer\Rect</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Private\VIBuffer_Rect_Instance.cpp">
       <Filter>07. Component\VIBuffer\Rect</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\Timer.cpp">
@@ -334,13 +334,13 @@
       <Filter>07. Component\SpringArm</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\Cell.cpp">
-      <Filter>07. Component\Navigation\Cell</Filter>
+      <Filter>Navigation\Cell</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\NavMesh.cpp">
-      <Filter>07. Component\Navigation\NavMesh</Filter>
+      <Filter>Navigation\NavMesh</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\NavigationAgent.cpp">
-      <Filter>07. Component\Navigation\NavigationAgent</Filter>
+      <Filter>Navigation\NavigationAgent</Filter>
     </ClCompile>
     <ClCompile Include="..\Private\VIBuffer_NavMesh.cpp">
       <Filter>07. Component\VIBuffer\NavMesh</Filter>
@@ -399,6 +399,9 @@
     <ClCompile Include="..\Private\Shadow.cpp">
       <Filter>16. Shadow</Filter>
     </ClCompile>
+    <ClCompile Include="..\Private\VIBuffer_Rect_Instance.cpp">
+      <Filter>07. Component\VIBuffer\Instance\Rect</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Public\GameInstance.h">
@@ -430,9 +433,6 @@
     </ClInclude>
     <ClInclude Include="..\Public\VIBuffer.h">
       <Filter>07. Component\VIBuffer</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Public\VIBuffer_Rect_Instance.h">
-      <Filter>07. Component\VIBuffer\Rect</Filter>
     </ClInclude>
     <ClInclude Include="..\Public\Base.h">
       <Filter>98. SuperClass\Base</Filter>
@@ -543,13 +543,13 @@
       <Filter>99. Defines</Filter>
     </ClInclude>
     <ClInclude Include="..\Public\Cell.h">
-      <Filter>07. Component\Navigation\Cell</Filter>
+      <Filter>Navigation\Cell</Filter>
     </ClInclude>
     <ClInclude Include="..\Public\NavMesh.h">
-      <Filter>07. Component\Navigation\NavMesh</Filter>
+      <Filter>Navigation\NavMesh</Filter>
     </ClInclude>
     <ClInclude Include="..\Public\NavigationAgent.h">
-      <Filter>07. Component\Navigation\NavigationAgent</Filter>
+      <Filter>Navigation\NavigationAgent</Filter>
     </ClInclude>
     <ClInclude Include="..\Public\VIBuffer_NavMesh.h">
       <Filter>07. Component\VIBuffer\NavMesh</Filter>
@@ -607,6 +607,9 @@
     </ClInclude>
     <ClInclude Include="..\Public\Shadow.h">
       <Filter>16. Shadow</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\VIBuffer_Rect_Instance.h">
+      <Filter>07. Component\VIBuffer\Instance\Rect</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -98,6 +98,8 @@ namespace Engine
         DETECT_OFF,
         INVINCIBLE_ON,
         INVINCIBLE_OFF,
+        TRAIL_ON,
+        TRAIL_OFF,
         END
     };
 

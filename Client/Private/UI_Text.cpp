@@ -142,6 +142,13 @@ HRESULT CUI_Text::Render()
         _float2(fFinalScale, fFinalScale));
 }
 
+void CUI_Text::Set_Center(_float fCenterX, _float fCenterY)
+{
+    m_fCenterX = fCenterX;
+    m_fCenterY = fCenterY;
+    Update_UIState();
+}
+
 void CUI_Text::Set_AlphaPulse(_float fSpeed, _float fMinAlpha, _float fMaxAlpha)
 {
     m_bAlphaPulse = true;
