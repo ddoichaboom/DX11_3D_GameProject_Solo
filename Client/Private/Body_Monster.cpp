@@ -3,6 +3,7 @@
 
 #include "Model.h"
 #include "Shader.h"
+#include "Texture.h"
 #include "AnimController.h"
 #include "MonsterAnimTable.h"
 #include "NotifyListener.h"
@@ -60,6 +61,12 @@ void CBody_Monster::Priority_Update(_float fTimeDelta)
 
 void CBody_Monster::Update(_float fTimeDelta)
 {
+	if (true == m_bDissolvePlaying)
+	{
+		m_fDissolveElapsed += fTimeDelta;
+		m_fDissolveElapsed = min(m_fDissolveElapsed, m_fDissolveDuration);
+	}
+
 	if (nullptr == m_pAnimController)
 		return;
 
@@ -80,13 +87,22 @@ void CBody_Monster::Late_Update(_float fTimeDelta)
 {
 	__super::Compute_CombinedWorldMatrix(XMLoadFloat4x4(m_pTransformCom->Get_WorldMatrixPtr()));
 
+	if (true == m_bDissolvePlaying && m_fDissolveElapsed >= m_fDissolveDuration)
+		return;
+
 	if (nullptr != m_pModelCom)
+	{
+		m_pGameInstance->Add_RenderGroup(RENDERID::SHADOW, this);
 		m_pGameInstance->Add_RenderGroup(RENDERID::NONBLEND, this);
+	}
 }
 
 HRESULT CBody_Monster::Render()
 {
 	if (nullptr == m_pShaderCom || nullptr == m_pModelCom)
+		return S_OK;
+
+	if (true == m_bDissolvePlaying && m_fDissolveElapsed >= m_fDissolveDuration)
 		return S_OK;
 
 	if (FAILED(Bind_ShaderResources()))
@@ -105,7 +121,49 @@ HRESULT CBody_Monster::Render()
 		if (FAILED(m_pModelCom->Bind_Material(m_pShaderCom, "g_DiffuseTexture", i, TEXTURE_TYPE::DIFFUSE)))
 			return E_FAIL;
 
+		_float fHasSpec = SUCCEEDED(m_pModelCom->Bind_Material(m_pShaderCom, "g_SpecularTexture", i, TEXTURE_TYPE::SPECULAR)) ? 1.f : 0.f;
+		m_pShaderCom->Bind_RawValue("g_fHasSpecularMap", &fHasSpec, sizeof(_float));
+
+		const _float fDissolveAmount = (true == m_bDissolvePlaying) ? min(1.f, m_fDissolveElapsed / m_fDissolveDuration) : 0.f;
+		m_pShaderCom->Bind_RawValue("g_fDissolveAmount", &fDissolveAmount, sizeof(_float));
+		m_pShaderCom->Bind_RawValue("g_fDissolveEdgeWidth", &m_fDissolveEdgeWidth, sizeof(_float));
+		m_pShaderCom->Bind_RawValue("g_vDissolveEdgeColor", &m_vDissolveEdgeColor, sizeof(_float4));
+
+		if (nullptr != m_pDissolveTextureCom)
+			m_pDissolveTextureCom->Bind_ShaderResource(m_pShaderCom, "g_DissolveTexture", 0);
+
 		if (FAILED(m_pShaderCom->Begin(0)))
+			return E_FAIL;
+
+		if (FAILED(m_pModelCom->Render(i)))
+			return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CBody_Monster::Render_Shadow()
+{
+	if (nullptr == m_pShaderCom || nullptr == m_pModelCom)
+		return S_OK;
+
+	if (true == m_bDissolvePlaying && m_fDissolveElapsed >= m_fDissolveDuration)
+		return S_OK;
+
+	if (FAILED(Bind_ShadowResources()))
+		return E_FAIL;
+
+	const _uint iNumMeshes = m_pModelCom->Get_NumMeshes();
+
+	for (_uint i = 0; i < iNumMeshes; ++i)
+	{
+		if (MODEL::ANIM == m_pModelCom->Get_ModelType())
+		{
+			if (FAILED(m_pModelCom->Bind_BoneMatrices(m_pShaderCom, "g_BoneMatrices", i)))
+				return E_FAIL;
+		}
+
+		if (FAILED(m_pShaderCom->Begin(2)))
 			return E_FAIL;
 
 		if (FAILED(m_pModelCom->Render(i)))
@@ -156,6 +214,14 @@ _float3 CBody_Monster::Get_LastRootMotionDelta() const
 	return m_pModelCom->Get_LastRootMotionDelta();
 }
 
+void CBody_Monster::Start_Dissolve(_float fDuration, const _float4& vEdgeColor)
+{
+	m_bDissolvePlaying = true;
+	m_fDissolveElapsed = 0.f;
+	m_fDissolveDuration = max(0.001f, fDuration);
+	m_vDissolveEdgeColor = vEdgeColor;
+}
+
 HRESULT CBody_Monster::Ready_Components(const BODY_MONSTER_DESC& Desc)
 {
 	if (FAILED(__super::Add_Component(
@@ -174,6 +240,13 @@ HRESULT CBody_Monster::Ready_Components(const BODY_MONSTER_DESC& Desc)
 		pShaderPrototypeTag,
 		TEXT("Com_Shader"),
 		reinterpret_cast<CComponent**>(&m_pShaderCom))))
+		return E_FAIL;
+
+	if (FAILED(__super::Add_Component(
+		ETOUI(LEVEL::GAMEPLAY),
+		TEXT("Prototype_Component_Texture_Effect_Dissolve_Monster"),
+		TEXT("Com_DissolveTexture"),
+		reinterpret_cast<CComponent**>(&m_pDissolveTextureCom))))
 		return E_FAIL;
 
 	if (MODEL::ANIM == m_pModelCom->Get_ModelType())
@@ -200,23 +273,19 @@ HRESULT CBody_Monster::Bind_ShaderResources()
 	if (FAILED(m_pShaderCom->Bind_Matrix("g_ProjMatrix", m_pGameInstance->Get_Transform(D3DTS::PROJ))))
 		return E_FAIL;
 
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vCamPosition", m_pGameInstance->Get_CamPosition(), sizeof(_float4))))
+	return S_OK;
+}
+
+
+HRESULT CBody_Monster::Bind_ShadowResources()
+{
+	if (FAILED(m_pShaderCom->Bind_Matrix("g_WorldMatrix", &m_CombinedWorldMatrix)))
 		return E_FAIL;
 
-	const LIGHT_DESC* pLightDesc = m_pGameInstance->Get_LightDesc(0);
-	if (nullptr == pLightDesc)
+	if (FAILED(m_pShaderCom->Bind_Matrix("g_ViewMatrix", m_pGameInstance->Get_Shadow_Transform(D3DTS::VIEW))))
 		return E_FAIL;
 
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightDir", &pLightDesc->vDirection, sizeof(_float4))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightDiffuse", &pLightDesc->vDiffuse, sizeof(_float4))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightAmbient", &pLightDesc->vAmbient, sizeof(_float4))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightSpecular", &pLightDesc->vSpecular, sizeof(_float4))))
+	if (FAILED(m_pShaderCom->Bind_Matrix("g_ProjMatrix", m_pGameInstance->Get_Shadow_Transform(D3DTS::PROJ))))
 		return E_FAIL;
 
 	return S_OK;
@@ -251,6 +320,16 @@ HRESULT CBody_Monster::Register_AnimationClips()
 	for (_uint i = 0; i < m_pAnimTable->iNumClips; ++i)
 	{
 		const MONSTER_ANIM_BIND_DESC& Bind = m_pAnimTable->pClips[i];
+
+		_int iAnimationIndex = m_pModelCom->Get_AnimationIndex(Bind.pAnimationName);
+		if (-1 == iAnimationIndex)
+			return E_FAIL;
+
+		if (true == Bind.bOverrideLoop)
+			m_pModelCom->Set_AnimationLoop(static_cast<_uint>(iAnimationIndex), Bind.bLoop);
+
+		if (true == Bind.bOverrideRootMotion)
+			m_pModelCom->Set_AnimationUseRootMotion(static_cast<_uint>(iAnimationIndex), Bind.bUseRootMotion);
 
 		CAnimController::ANIM_CLIP_DESC Desc{};
 		Desc.pAnimationName = Bind.pAnimationName;
@@ -311,6 +390,7 @@ void CBody_Monster::Free()
 	__super::Free();
 
 	Safe_Release(m_pAnimController);
+	Safe_Release(m_pDissolveTextureCom);
 	Safe_Release(m_pModelCom);
 	Safe_Release(m_pShaderCom);
 }

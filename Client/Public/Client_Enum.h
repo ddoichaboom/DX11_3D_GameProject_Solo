@@ -1,4 +1,4 @@
-#ifndef Client_Enum_h__
+﻿#ifndef Client_Enum_h__
 #define Client_Enum_h__
 
 
@@ -16,20 +16,20 @@ namespace Client
 
 	enum class EQUIPPED_WEAPON_ID
 	{
-		NONE,					// ������ ( DEFAULT ��� )
+		NONE,					// 미장착 ( DEFAULT 양손 )
 
 		// DAGGER
 		KNIGHT_KILLER,			
 		KASAKA_VENOM_FANG,
 
 
-		// ���� �߰�
+		// 향후 추가
 		END
 	};
 
 	enum class CHARACTER_ACTION
 	{
-		// LOCOMOTION 
+		// LOCOMOTION
 		IDLE,
 		WALK,
 		RUN,
@@ -38,19 +38,17 @@ namespace Client
 		RUN_FAST_RIGHT,
 		DASH,
 		BACK_DASH,
-		RUN_END,		// �ִϸ��̼��� LEFT�� ��������� Ŭ���� �����ϹǷ� �� �񱳰� �Ұ����� �� �б��ϱ� ���� ���ε�
+		RUN_END,
 		RUN_END_LEFT,
 		RUN_END_RIGHT,
 
-		// ���� ��� - DEFAULT/DAGGER ���� Ŭ��
+		// 기본 공격
 		BASIC_ATTACK_01,
 		BASIC_ATTACK_02,
 		BASIC_ATTACK_03,
 
-		// ����
-		GUARD_START,
-		GUARD_LOOP,
-		GUARD_END,
+		// 가드 — STEP 축 사용 (R2 통합, GUARD_START/LOOP/END 폐기)
+		GUARD,
 
 		// HIT / FLOAT / DOWN
 		FLOAT_A,
@@ -59,7 +57,39 @@ namespace Client
 		DOWN_RECOVERY,
 		BREAKFALL,
 
+		// 일반 피격 경직 — STEP축으로 강도 세분화
+		// NONE=UpperOnly / START=A / LOOP=B_Left / END=B_Right / END2=C
+		DAMAGE,
+
 		UNDRAW,
+
+		WEAPON_SWAP,
+		SKILL_F,
+		SKILL_Q,
+		SKILL_E,
+		SKILL_R,
+		QTE_EXTREME_DASH,
+		PARRY_COUNTER_1,
+		PARRY_COUNTER_2,
+		PARRY_COUNTER_3,
+		END
+	};
+
+	enum class CHARACTER_ACTION_STEP : unsigned int
+	{
+		NONE,
+		START,
+		LOOP,
+		END,
+		END2
+	};
+
+	enum class SKILL_SLOT
+	{
+		Q,
+		E,
+		F,
+		R,
 		END
 	};
 
@@ -84,40 +114,40 @@ namespace Client
 
 	//enum class CHARACTER_ACTION : unsigned int
 	//{
-	//	// �÷��̾� �̵� (WASD)
-	//	// �⺻ ���� 
-	//	// ( �տ� ���Ⱑ �����Ǿ� �ִ� ��� = ����/��ų ��� �� -> UnDraw Weapon �ִϸ��̼� ȣ�� �� IDLE�� ����)
+	//	// 플레이어 이동 (WASD)
+	//	// 기본 상태 
+	//	// ( 손에 무기가 부착되어 있는 경우 = 공격/스킬 사용 후 -> UnDraw Weapon 애니메이션 호출 후 IDLE로 복귀)
 	//	IDLE,
 
-	//	WALK,			 // �÷��̾� �̵� �Է� ���Ĵ� WALK
-	//	RUN,			// �̵� �Է��� ���ӵ� ��� RUN���� ��ȯ
-	//	RUN_FAST,		// DASH ������ �̵� �Է��� RUN_FAST�� ����.
+	//	WALK,			 // 플레이어 이동 입력 직후는 WALK
+	//	RUN,			// 이동 입력이 지속될 경우 RUN으로 전환
+	//	RUN_FAST,		// DASH 이후의 이동 입력은 RUN_FAST로 진행.
 
-	//	// ȸ�� (Space)
+	//	// 회피 (Space)
 	//	DASH,
 	//	BACK_DASH,
 
-	//	// �⺻ ���� - (LMB) 
-	//	// ���� ������ ���� ������ �����ε� �ش� BASIC_ATTACK�� �ִϸ��̼��� ���� ������/���̰� �ִ� Weapon Type�� ���� (DAGGER/PISTOL/...)
+	//	// 기본 공격 - (LMB) 
+	//	// 세부 로직은 차차 구현할 예정인데 해당 BASIC_ATTACK의 애니메이션은 현재 장착된/보이고 있는 Weapon Type에 의존 (DAGGER/PISTOL/...)
 	//	BASIC_ATTACK_01,
 	//	BASIC_ATTACK_02,
 	//	BASIC_ATTACK_03,
 
-	//	// ���� ���� ��ų (C)
+	//	// 무기 고유 스킬 (C)
 	//	CORE_ATTACK,
 
-	//	// �Ϲ� ��ų (Q/E)
-	//	// ��ų Ʈ�� - �Ϲ� ��ų ��Ʈ A/B ��Ʈ�� ���� �ΰ��� ��ų���� �����س��´�. 
-	//	// 1�� ���� ��� �� - A ��Ʈ -> Core Attack ��� ->  2�� ���� ��ȯ - B ��Ʈ ��ȯ 
+	//	// 일반 스킬 (Q/E)
+	//	// 스킬 트리 - 일반 스킬 세트 A/B 세트에 각각 두개의 스킬들을 매핑해놓는다. 
+	//	// 1번 무기 사용 중 - A 세트 -> Core Attack 사용 ->  2번 무기 전환 - B 세트 전환 
 	//	NORMAL_SKILL,
 
-	//	// �ñر� (R)
+	//	// 궁극기 (R)
 	//	ULTIMATE,
 
-	//	// ��� (RMB)
+	//	// 방어 (RMB)
 	//	GUARD,
 	//	
-	//	// ���� �ǰ�/�����̻�
+	//	// 전투 피격/상태이상
 	//	BREAKFALL,
 	//	HIT,
 	//	STUN,
@@ -224,8 +254,11 @@ namespace Client
 	enum class UI_SWEEP_MODE 
 	{
 		NONE = 0,
-		POSITION,		// Mesh ��ü X ��ǥ �� -> �� �̵�
-		UV,				// Mesh ����, UV Y ��ũ��
+		POSITION,		// Mesh 자체 X 좌표 좌 -> 우 이동
+		UV,				// Mesh 정지, UV Y 스크롤
+		BOX,			// 절차 박스 (테두리 + 반투명 채움)
+		FILL,			// 단색 채움 (border 라인 등)
+		GAUGE_V,		// 세로(하단→상단) 게이지 — Cool 쿨다운
 		END
 	};
 
@@ -248,7 +281,40 @@ namespace Client
 		PLAYER_MP_BACK, PLAYER_MP_REDUCE, PLAYER_MP_FILL, PLAYER_MP_BARLIGHT,
 		DASH_BASE, DASH_LINE,
 		DASH_STEP1, DASH_STEP1_GLOW, DASH_STEP2, DASH_STEP2_GLOW, DASH_STEP3, DASH_STEP3_GLOW,
+
+		// R8-A 스킬 5슬롯 (C/F/Q/E/R) — 슬롯마다 Base/Icon/Cool
+		SKILL_C_BASE, SKILL_C_ICON, SKILL_C_COOL,
+		SKILL_F_BASE, SKILL_F_ICON, SKILL_F_COOL,
+		SKILL_Q_BASE, SKILL_Q_ICON, SKILL_Q_COOL,
+		SKILL_E_BASE, SKILL_E_ICON, SKILL_E_COOL,
+		SKILL_R_BASE, SKILL_R_ICON, SKILL_R_COOL,
+
+		// 키 라벨 배경 박스 (BOX 모드) + QTE 슬롯
+		SKILL_C_KEYBOX, SKILL_F_KEYBOX, SKILL_Q_KEYBOX, SKILL_E_KEYBOX, SKILL_R_KEYBOX,
+		QTE_FRAME, QTE_ICON, QTE_KEYBOX, QTE_COOL, QTE_ACTIVE,
+
+		// 스킬 사용가능(쿨다운 아님) Active 글로우
+		SKILL_C_ACTIVE, SKILL_F_ACTIVE, SKILL_Q_ACTIVE, SKILL_E_ACTIVE, SKILL_R_ACTIVE,
+
+		// R8-B 퀘스트 목표 (우측 상단)
+		QUEST_ALARM, QUEST_UNDERLINE,
+
 		END
+	};
+
+	enum class AREA_ATTACK_SHAPE
+	{
+		CIRCLE,
+		RING,
+		FRONT_BOX,
+		FRONT_SPHERE,
+		END
+	};
+
+	enum class QTE_TYPE
+	{ 
+		EXTREME_DASH, 
+		END 
 	};
 }
 #endif // Client_Enum_h__

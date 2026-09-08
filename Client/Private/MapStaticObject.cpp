@@ -57,11 +57,30 @@ HRESULT CMapStaticObject::Render()
 
 	_uint iNumMeshes = m_pModelCom->Get_NumMeshes();
 
+	m_pGameInstance->Transform_Frustum_ToLocalSpace(XMLoadFloat4x4(&m_CombinedWorldMatrix));
+
 	for (_uint i = 0; i < iNumMeshes; ++i)
 	{
+		_float3 vLocalCenter = {};
+		_float3 vLocalHalf = {};
+
+		if (true == m_pModelCom->Get_MeshLocalAABB(i, vLocalCenter, vLocalHalf))
+		{
+			const _float fRadius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&vLocalHalf)));
+
+			if (false == m_pGameInstance->Is_In_Frustum_LocalSpace(
+				XMVectorSetW(XMLoadFloat3(&vLocalCenter), 1.f),
+				fRadius))
+			{
+				continue;
+			}
+		}
+
 		if (FAILED(m_pModelCom->Bind_Material(m_pShaderCom, "g_DiffuseTexture", i, TEXTURE_TYPE::DIFFUSE)))
-			/*return E_FAIL;*/
 			continue;
+
+		_float fHasSpec = SUCCEEDED(m_pModelCom->Bind_Material(m_pShaderCom, "g_SpecularTexture", i, TEXTURE_TYPE::SPECULAR)) ? 1.f : 0.f;
+		m_pShaderCom->Bind_RawValue("g_fHasSpecularMap", &fHasSpec, sizeof(_float));
 
 		if (FAILED(m_pShaderCom->Begin(1)))
 			return E_FAIL;
@@ -97,25 +116,6 @@ HRESULT	CMapStaticObject::Bind_ShaderResources()
 		return E_FAIL;
 
 	if (FAILED(m_pShaderCom->Bind_Matrix("g_ProjMatrix", m_pGameInstance->Get_Transform(D3DTS::PROJ))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vCamPosition", m_pGameInstance->Get_CamPosition(), sizeof(_float4))))
-		return E_FAIL;
-
-	const LIGHT_DESC* pLightDesc = m_pGameInstance->Get_LightDesc(0);
-	if (nullptr == pLightDesc)
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightDir", &pLightDesc->vDirection, sizeof(_float4))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightDiffuse", &pLightDesc->vDiffuse, sizeof(_float4))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightAmbient", &pLightDesc->vAmbient, sizeof(_float4))))
-		return E_FAIL;
-
-	if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightSpecular", &pLightDesc->vSpecular, sizeof(_float4))))
 		return E_FAIL;
 
 	return S_OK;

@@ -13,7 +13,7 @@ public:
 	typedef struct tagNavigationAgentDesc
 	{
 		CNavMesh* pNavMesh = { nullptr };
-		_int iStartCellIndex = { NAVMESH_INVALID_INDEX };
+		_int iStartCellIndex = { INVALID_INDEX };
 	}NAVIGATION_AGENT_DESC;
 
 private:
@@ -41,7 +41,7 @@ public:
 
 private:
 	CNavMesh*					m_pNavMesh = { nullptr };
-	_int						m_iCurrentCellIndex = { NAVMESH_INVALID_INDEX };
+	_int						m_iCurrentCellIndex = { INVALID_INDEX };
 
 public:
 	static CNavigationAgent*	Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

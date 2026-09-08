@@ -18,6 +18,7 @@ private:
 
 public:
     const BoundingSphere*       Get_Desc() const { return m_pDesc; }
+    void                        Set_Radius(_float fRadius);
 
 public:
     virtual HRESULT             Initialize(const CBounding::BOUNDING_DESC* pBoundingDesc) override;

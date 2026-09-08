@@ -378,24 +378,30 @@ void CPanel_2DCanvas::Render_Text_Properties(UI_ELEMENT* pElement)
         ImGui::TextDisabled("Scale is clamped to fit Size box");
 
     ImGui::Separator();
-    ImGui::ColorEdit4("Color", &pElement->vColor.x,
-        ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_PickerHueWheel);
+    ImGui::TextDisabled("Text Color");
 
-    // 프리셋 버튼 (자주 쓰는 색)
-    if (ImGui::SmallButton("White"))   
-        pElement->vColor = _float4{ 1.f, 1.f, 1.f, 1.f };
+    ImGui::ColorEdit4("Color##text", &pElement->vColor.x,
+        ImGuiColorEditFlags_AlphaBar |
+        ImGuiColorEditFlags_PickerHueWheel |
+        ImGuiColorEditFlags_Float |
+        ImGuiColorEditFlags_AlphaPreviewHalf);
+
+    ImGui::SliderFloat("Alpha##text", &pElement->vColor.w, 0.f, 1.f, "%.2f");
+
+    if (ImGui::SmallButton("White##text"))
+        pElement->vColor = _float4{ 1.f, 1.f, 1.f, pElement->vColor.w };
     ImGui::SameLine();
 
-    if (ImGui::SmallButton("Gold"))    
-        pElement->vColor = _float4{ 1.f, 0.85f, 0.2f, 1.f };
+    if (ImGui::SmallButton("Gold##text"))
+        pElement->vColor = _float4{ 1.f, 0.85f, 0.2f, pElement->vColor.w };
     ImGui::SameLine();
 
-    if (ImGui::SmallButton("Red"))     
-        pElement->vColor = _float4{ 1.f, 0.3f, 0.3f, 1.f };
+    if (ImGui::SmallButton("Red##text"))
+        pElement->vColor = _float4{ 1.f, 0.3f, 0.3f, pElement->vColor.w };
     ImGui::SameLine();
 
-    if (ImGui::SmallButton("CyanBlue"))
-        pElement->vColor = _float4{ 0.4f, 0.8f, 1.f, 1.f };
+    if (ImGui::SmallButton("CyanBlue##text"))
+        pElement->vColor = _float4{ 0.4f, 0.8f, 1.f, pElement->vColor.w };
 }
 
 void CPanel_2DCanvas::Render_SpriteAnim_Properties(UI_ELEMENT* pElement)

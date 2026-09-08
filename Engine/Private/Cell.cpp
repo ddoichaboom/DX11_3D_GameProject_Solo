@@ -32,7 +32,7 @@ HRESULT CCell::Initialize(_int iCellIndex, const vector<_float3>* pVertices, con
 _int CCell::Get_VertexIndex(_uint iPointIndex) const
 {
 	if (iPointIndex >= ETOUI(NAVMESH_POINT::END))
-		return NAVMESH_INVALID_INDEX;
+		return INVALID_INDEX;
 
 	return m_Cell.iVertexIndices[iPointIndex];
 }
@@ -40,7 +40,7 @@ _int CCell::Get_VertexIndex(_uint iPointIndex) const
 _int CCell::Get_NeighborIndex(_uint iLineIndex) const
 {
 	if (iLineIndex >= ETOUI(NAVMESH_LINE::END))
-		return NAVMESH_INVALID_INDEX;
+		return INVALID_INDEX;
 
 	return m_Cell.iNeighborIndices[iLineIndex];
 }
@@ -56,10 +56,10 @@ void CCell::Set_NeighborIndex(_uint iLineIndex, _int iNeighborIndex)
 void CCell::Get_EdgeVertexIndices(_uint iLineIndex, _int* pOutStart, _int* pOutEnd) const
 {
 	if (nullptr != pOutStart)
-		*pOutStart = NAVMESH_INVALID_INDEX;
+		*pOutStart = INVALID_INDEX;
 
 	if (nullptr != pOutEnd)
-		*pOutEnd = NAVMESH_INVALID_INDEX;
+		*pOutEnd = INVALID_INDEX;
 
 	if (iLineIndex >= ETOUI(NAVMESH_LINE::END))
 		return;
@@ -77,7 +77,7 @@ void CCell::Get_EdgeVertexIndices(_uint iLineIndex, _int* pOutStart, _int* pOutE
 _bool CCell::Is_In(const _float3& vPosition, _int* pOutNeighborIndex) const
 {
 	if (nullptr != pOutNeighborIndex)
-		*pOutNeighborIndex = NAVMESH_INVALID_INDEX;
+		*pOutNeighborIndex = INVALID_INDEX;
 
 	const _float fSignedArea = Compute_SignedArea_XZ();
 	const _float fWindingSign = (fSignedArea >= 0.f) ? 1.f : -1.f;
@@ -118,14 +118,14 @@ _bool CCell::Shares_Edge(const CCell* pOther, _uint* pOutLineIndex, _uint* pOutO
 
 	for (_uint iLine = 0; iLine < ETOUI(NAVMESH_LINE::END); ++iLine)
 	{
-		_int iStart = NAVMESH_INVALID_INDEX;
-		_int iEnd = NAVMESH_INVALID_INDEX;
+		_int iStart = INVALID_INDEX;
+		_int iEnd = INVALID_INDEX;
 		Get_EdgeVertexIndices(iLine, &iStart, &iEnd);
 
 		for (_uint iOtherLine = 0; iOtherLine < ETOUI(NAVMESH_LINE::END); ++iOtherLine)
 		{
-			_int iOtherStart = NAVMESH_INVALID_INDEX;
-			_int iOtherEnd = NAVMESH_INVALID_INDEX;
+			_int iOtherStart = INVALID_INDEX;
+			_int iOtherEnd = INVALID_INDEX;
 			pOther->Get_EdgeVertexIndices(iOtherLine, &iOtherStart, &iOtherEnd);
 
 			const _bool bSameDirection =

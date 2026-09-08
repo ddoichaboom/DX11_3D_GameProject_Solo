@@ -87,7 +87,15 @@ HRESULT CUI_SpriteAnim::Bind_SpriteAnim_Resources()
     _float4 vUVOffsetScale{};
     Compute_UVOffsetScale(&vUVOffsetScale);
 
-    return m_pShaderCom->Bind_RawValue("g_vUVOffsetScale", &vUVOffsetScale, sizeof(_float4));
+    if (FAILED(m_pShaderCom->Bind_RawValue("g_vUVOffsetScale", &vUVOffsetScale, sizeof(_float4))))
+        return E_FAIL;
+
+    const _float fOne = 1.f;
+    if (FAILED(m_pShaderCom->Bind_RawValue("g_fAlpha", &fOne, sizeof(_float)))) return E_FAIL;
+    if (FAILED(m_pShaderCom->Bind_RawValue("g_fGaugeProgress", &fOne, sizeof(_float)))) return E_FAIL;
+
+
+    return S_OK;
 }
 
 void CUI_SpriteAnim::Compute_UVOffsetScale(_float4* pOut) const

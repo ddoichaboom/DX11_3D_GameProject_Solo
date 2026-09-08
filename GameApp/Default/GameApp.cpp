@@ -23,6 +23,34 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
+#ifdef _DEBUG
+namespace
+{
+    void Update_DebugFPSTitle(HWND hWnd, _float fTimeDelta)
+    {
+        static _float fTimeAcc = 0.f;
+        static _uint iFrameCount = 0;
+
+        fTimeAcc += fTimeDelta;
+        ++iFrameCount;
+
+        if (fTimeAcc < 1.f)
+            return;
+
+        const _float fFPS = static_cast<_float>(iFrameCount) / fTimeAcc;
+        const _float fMS = 1000.f / max(fFPS, 0.0001f);
+
+        _tchar szTitle[128] = {};
+        _stprintf_s(szTitle, TEXT("Solo Leveling | FPS : %.1f | %.2f ms"), fFPS, fMS);
+
+        SetWindowText(hWnd, szTitle);
+
+        fTimeAcc = 0.f;
+        iFrameCount = 0;
+    }
+}
+#endif
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_ LPWSTR    lpCmdLine,
@@ -94,7 +122,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         {
             pGameInstance->Compute_Timer(TEXT("Timer_60"));
 
-            pMainApp->Update(pGameInstance->Get_TimeDelta(TEXT("Timer_60")));
+            const _float fTimeDelta = pGameInstance->Get_TimeDelta(TEXT("Timer_60"));
+
+#ifdef _DEBUG
+            Update_DebugFPSTitle(g_hWnd, fTimeDelta);
+#endif
+
+            pMainApp->Update(fTimeDelta);
             pMainApp->Render();
 
             fTimeAcc = 0.f;

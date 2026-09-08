@@ -8,6 +8,7 @@ class CShader;
 class CModel;
 class CAnimController;
 class INotifyListener;
+class CTexture;
 NS_END
 
 NS_BEGIN(Client)
@@ -33,6 +34,7 @@ public:
 	virtual void					Update(_float fTimeDelta) override;
 	virtual void					Late_Update(_float fTimeDelta) override;
 	virtual HRESULT					Render() override;
+	virtual HRESULT					Render_Shadow() override;
 
 public:
 	const _float4x4*				Get_BoneMatrixPtr(const _char* pBoneName) const;
@@ -41,10 +43,12 @@ public:
 
 	void							Set_Listener(INotifyListener* pListener);
 	_float3							Get_LastRootMotionDelta() const;
+	void							Start_Dissolve(_float fDuration, const _float4& vEdgeColor);
 
 private:
 	HRESULT							Ready_Components(const BODY_MONSTER_DESC& Desc);
 	HRESULT							Bind_ShaderResources();
+	HRESULT							Bind_ShadowResources();
 
 	HRESULT                         Ready_AnimationTable();
 	HRESULT                         Register_AnimationClips();
@@ -54,6 +58,7 @@ private:
 	CShader*						m_pShaderCom = { nullptr };
 	CModel*							m_pModelCom = { nullptr };
 	CAnimController*				m_pAnimController = { nullptr };
+	CTexture*						m_pDissolveTextureCom = { nullptr };
 
 	_wstring						m_strModelPrototypeTag;
 	MONSTER_ANIM_SET				m_eAnimSet = { MONSTER_ANIM_SET::NONE };
@@ -64,6 +69,12 @@ private:
 
 	const MONSTER_ANIM_TABLE_DESC*	m_pAnimTable = { nullptr };
 	INotifyListener*				m_pListener = { nullptr };
+
+	_bool							m_bDissolvePlaying = { false };
+	_float							m_fDissolveElapsed = {};
+	_float							m_fDissolveDuration = { 1.f };
+	_float							m_fDissolveEdgeWidth = { 0.08f };
+	_float4							m_vDissolveEdgeColor = { 1.f, 0.05f, 0.02f, 1.f };
 
 public:
 	static CBody_Monster*			Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

@@ -13,6 +13,20 @@ sampler PointSampler = sampler_state
     AddressV = wrap;
 };
 
+sampler ClampSampler = sampler_state
+{
+    filter = min_mag_mip_linear;
+    AddressU = clamp;
+    AddressV = clamp;
+};
+
+sampler PointClampSampler = sampler_state
+{
+    filter = min_mag_mip_point;
+    AddressU = clamp;
+    AddressV = clamp;
+};
+
 // Rasterizer States
 RasterizerState RS_Wireframe
 {
@@ -75,4 +89,20 @@ BlendState BS_AlphaBlend
     SrcBlend = Src_Alpha;
     DestBlend = Inv_Src_Alpha;
     BlendOp = Add;
+};
+
+BlendState BS_Blend
+{
+    BlendEnable[0] = true;
+    BlendEnable[1] = true;
+
+    SrcBlend = One;
+    DestBlend = One;
+    BlendOp = Add;
+};
+
+BlendState BS_AlphaOnly
+{
+    BlendEnable[0] = false;
+    RenderTargetWriteMask[0] = 0x08;        // Alpha 채널만 기록 ( RGB 보존 )
 };

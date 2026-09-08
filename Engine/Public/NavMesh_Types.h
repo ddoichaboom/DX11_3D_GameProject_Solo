@@ -4,7 +4,7 @@
 
 NS_BEGIN(Engine)
 
-static constexpr _int	NAVMESH_INVALID_INDEX		= { -1 };
+static constexpr _int	INVALID_INDEX		= { -1 };
 static constexpr _float NAVMESH_DEFAULT_SNAP_RADIUS = { 0.5f };
 static constexpr _float NAVMESH_MIN_CELL_AREA		= { 0.0001f };
 
@@ -27,15 +27,15 @@ enum class NAVMESH_LINE : _uint
 typedef struct tagNavMeshCell
 {
 	_int iVertexIndices[3] = {
-		NAVMESH_INVALID_INDEX,
-		NAVMESH_INVALID_INDEX,
-		NAVMESH_INVALID_INDEX
+		INVALID_INDEX,
+		INVALID_INDEX,
+		INVALID_INDEX
 	};
 
 	_int iNeighborIndices[3] = {
-		NAVMESH_INVALID_INDEX,
-		NAVMESH_INVALID_INDEX,
-		NAVMESH_INVALID_INDEX
+		INVALID_INDEX,
+		INVALID_INDEX,
+		INVALID_INDEX
 	};
 }NAVMESH_CELL;
 

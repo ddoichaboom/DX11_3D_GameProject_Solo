@@ -234,7 +234,6 @@ HRESULT CVideoTexture::Update(_float fTimeDelta)
     m_llPlaybackTime += static_cast<LONGLONG>(
         static_cast<double>(fTimeDelta) * m_fPlaybackSpeed * 10000000.0);
 
-    // PTS <= playback time 인 프레임을 따라잡아 업로드. 큰 dt 시 hitch 폭주 방지로 16 cap.
     for (_int i = 0; i < 16; ++i)
     {
         if (!m_bHasPendingSample)
@@ -244,11 +243,24 @@ HRESULT CVideoTexture::Update(_float fTimeDelta)
             if (m_bFinished || !m_bHasPendingSample)
                 break;
         }
+
         if (m_llPendingPTS > m_llPlaybackTime)
             break;
-        if (FAILED(Upload_PendingSample()))
-            return E_FAIL;
+
+        break;
     }
+
+    return S_OK;
+}
+
+HRESULT CVideoTexture::Upload_ReadyFrame()
+{
+    if (nullptr == m_pSourceReader || m_bFinished)
+        return S_OK;
+
+    if (m_bHasPendingSample && m_llPendingPTS <= m_llPlaybackTime)
+        return Upload_PendingSample();
+
     return S_OK;
 }
 

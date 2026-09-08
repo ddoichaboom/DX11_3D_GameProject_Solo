@@ -12,6 +12,16 @@ CMesh::CMesh(const CMesh& Prototype)
 {
 }
 
+_bool CMesh::Get_LocalAABB(_float3& vOutCenter, _float3& vOutHalfExtent) const
+{
+	if (false == m_bLocalAABBValid)
+		return false;
+
+	vOutCenter = m_vLocalAABBCenter;
+	vOutHalfExtent = m_vLocalAABBHalfExtent;
+	return true;
+}
+
 HRESULT CMesh::Initialize_Prototype(MODEL eType, const MESH_DESC& Desc)
 {
 	strcpy_s(m_szName, Desc.szName);
@@ -100,6 +110,8 @@ HRESULT CMesh::Ready_NonAnimMesh(const MESH_DESC& Desc)
 	for (_uint i = 0; i < m_iNumVertices; ++i)
 		m_pPickData->pVerticesPos[i] = pVtx[i].vPosition;
 
+	Build_LocalAABB();
+
 	return S_OK;
 }
 
@@ -135,6 +147,8 @@ HRESULT CMesh::Ready_AnimMesh(const MESH_DESC& Desc)
 	for (_uint i = 0; i < m_iNumVertices; ++i)
 		m_pPickData->pVerticesPos[i] = pVtx[i].vPosition;
 
+	Build_LocalAABB();
+
 	m_PickBlendIndices.resize(m_iNumVertices);
 	m_PickBlendWeights.resize(m_iNumVertices);
 
@@ -145,6 +159,30 @@ HRESULT CMesh::Ready_AnimMesh(const MESH_DESC& Desc)
 	}
 
 	return S_OK;
+}
+
+void CMesh::Build_LocalAABB()
+{
+	if (nullptr == m_pPickData || nullptr == m_pPickData->pVerticesPos || 0 == m_pPickData->iNumVertices)
+		return;
+
+	_vector vMin = XMVectorSet(FLT_MAX, FLT_MAX, FLT_MAX, 0.f);
+	_vector vMax = XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 0.f);
+
+	for (_uint i = 0; i < m_pPickData->iNumVertices; ++i)
+	{
+		_vector vPos = XMLoadFloat3(&m_pPickData->pVerticesPos[i]);
+		vMin = XMVectorMin(vMin, vPos);
+		vMax = XMVectorMax(vMax, vPos);
+	}
+
+	_vector vCenter = XMVectorScale(XMVectorAdd(vMin, vMax), 0.5f);
+	_vector vHalf = XMVectorScale(XMVectorSubtract(vMax, vMin), 0.5f);
+
+	XMStoreFloat3(&m_vLocalAABBCenter, vCenter);
+	XMStoreFloat3(&m_vLocalAABBHalfExtent, vHalf);
+
+	m_bLocalAABBValid = true;
 }
 
 CMesh* CMesh::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, MODEL eType, const MESH_DESC& Desc)

@@ -82,6 +82,8 @@ HRESULT CUI_Text::Render()
         fFinalScale = m_fScale * fFit;
     }
 
+    fFinalScale *= m_fEffectScale;
+
     const _float fDrawW = vTextSize.x * fFinalScale;
     const _float fDrawH = vTextSize.y * fFinalScale;
 
@@ -138,6 +140,13 @@ HRESULT CUI_Text::Render()
         m_fRotation,
         _float2(0.f, 0.f),
         _float2(fFinalScale, fFinalScale));
+}
+
+void CUI_Text::Set_Center(_float fCenterX, _float fCenterY)
+{
+    m_fCenterX = fCenterX;
+    m_fCenterY = fCenterY;
+    Update_UIState();
 }
 
 void CUI_Text::Set_AlphaPulse(_float fSpeed, _float fMinAlpha, _float fMaxAlpha)

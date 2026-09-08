@@ -9,7 +9,23 @@ namespace Engine
 
 	enum class TRANSFORMTYPE { TRANSFORM_2D, TRANSFORM_3D, END };
 
-	enum class RENDERID { PRIORITY, NONBLEND, BLEND, UI, END };
+	enum class RENDERID { PRIORITY, SHADOW, NONBLEND, NONLIGHT, BLEND, UI, END };
+
+    enum class DEFERRED
+    {
+        DEBUG,
+        DIRECTIONAL,
+        POINT,
+        COMBINED,
+        COMBINED_DIFFUSE,
+        COMBINED_NORMAL,
+        COMBINED_DEPTH,
+        COMBINED_SHADE,
+        COMBINED_SPECULAR,
+        FORCE_ALPHA,
+        COMBINED_LIGHT_DEPTH,
+        END
+    };
 
 	enum class STATE { RIGHT, UP, LOOK, POSITION, END };
 
@@ -21,6 +37,17 @@ namespace Engine
 
 	enum class LIGHT { DIRECTIONAL, POINT, END };
 
+	enum class SOUND_CHANNEL
+	{
+		MASTER,
+		BGM,
+		SFX,
+		PLAYER,
+		MONSTER,
+		WEAPON,
+		UI,
+		END
+	};
 	enum class MODEL { NONANIM, ANIM, END };
 
     enum class TEXTURE_TYPE
@@ -67,6 +94,12 @@ namespace Engine
         COMBO_WINDOW_CLOSE,
         ATTACK_HITBOX_ON,
         ATTACK_HITBOX_OFF,
+        DETECT_ON,
+        DETECT_OFF,
+        INVINCIBLE_ON,
+        INVINCIBLE_OFF,
+        TRAIL_ON,
+        TRAIL_OFF,
         END
     };
 

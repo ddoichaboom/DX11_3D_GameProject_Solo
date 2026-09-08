@@ -79,7 +79,7 @@ void CBody_Player::Update(_float fTimeDelta)
     {
         NOTIFY_EVENT Event{};
         Event.eType = NOTIFY_TYPE::ACTION_FINISHED;
-        Event.iPayload = ETOUI(m_eCurrentAction);
+        Event.iPayload = Make_PlayerStateKey(m_eCurrentAction, m_eCurrentStep);
         Event.pData = nullptr;
 
         m_pListener->OnNotify(Event);
@@ -90,6 +90,7 @@ void CBody_Player::Late_Update(_float fTimeDelta)
 {
     __super::Compute_CombinedWorldMatrix(XMLoadFloat4x4(m_pTransformCom->Get_WorldMatrixPtr()));
 
+    m_pGameInstance->Add_RenderGroup(RENDERID::SHADOW, this);
     m_pGameInstance->Add_RenderGroup(RENDERID::NONBLEND, this);
 }
 
@@ -108,7 +109,35 @@ HRESULT CBody_Player::Render()
         if (FAILED(m_pModelCom->Bind_BoneMatrices(m_pShaderCom, "g_BoneMatrices", i)))
             return E_FAIL;
 
+        _float fHasSpec = SUCCEEDED(m_pModelCom->Bind_Material(m_pShaderCom, "g_SpecularTexture", i, TEXTURE_TYPE::SPECULAR, 0)) ? 1.f : 0.f;
+        m_pShaderCom->Bind_RawValue("g_fHasSpecularMap", &fHasSpec, sizeof(_float));
+
+        const _float fDissolveAmount = 0.f;
+        m_pShaderCom->Bind_RawValue("g_fDissolveAmount", &fDissolveAmount, sizeof(_float));
+
         if (FAILED(m_pShaderCom->Begin(0)))
+            return E_FAIL;
+
+        if (FAILED(m_pModelCom->Render(i)))
+            return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+HRESULT CBody_Player::Render_Shadow()
+{
+    if (FAILED(Bind_ShadowResources()))
+        return E_FAIL;
+
+    size_t iNumMeshes = m_pModelCom->Get_NumMeshes();
+
+    for (size_t i = 0; i < iNumMeshes; ++i)
+    {
+        if (FAILED(m_pModelCom->Bind_BoneMatrices(m_pShaderCom, "g_BoneMatrices", i)))
+            return E_FAIL;
+
+        if (FAILED(m_pShaderCom->Begin(2)))
             return E_FAIL;
 
         if (FAILED(m_pModelCom->Render(i)))
@@ -147,23 +176,22 @@ HRESULT CBody_Player::Bind_ShaderResources()
 
     if (FAILED(m_pShaderCom->Bind_Matrix("g_ViewMatrix", m_pGameInstance->Get_Transform(D3DTS::VIEW))))
         return E_FAIL;
+
     if (FAILED(m_pShaderCom->Bind_Matrix("g_ProjMatrix", m_pGameInstance->Get_Transform(D3DTS::PROJ))))
         return E_FAIL;
 
-    if (FAILED(m_pShaderCom->Bind_RawValue("g_vCamPosition", m_pGameInstance->Get_CamPosition(), sizeof(_float4))))
+    return S_OK;
+}
+
+HRESULT CBody_Player::Bind_ShadowResources()
+{
+    if (FAILED(m_pShaderCom->Bind_Matrix("g_WorldMatrix", &m_CombinedWorldMatrix)))
         return E_FAIL;
 
-    const LIGHT_DESC* pLightDesc = m_pGameInstance->Get_LightDesc(0);
-    if (nullptr == pLightDesc)
+    if (FAILED(m_pShaderCom->Bind_Matrix("g_ViewMatrix", m_pGameInstance->Get_Shadow_Transform(D3DTS::VIEW))))
         return E_FAIL;
 
-    if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightDir", &pLightDesc->vDirection, sizeof(_float4))))
-        return E_FAIL;
-    if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightDiffuse", &pLightDesc->vDiffuse, sizeof(_float4))))
-        return E_FAIL;
-    if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightAmbient", &pLightDesc->vAmbient, sizeof(_float4))))
-        return E_FAIL;
-    if (FAILED(m_pShaderCom->Bind_RawValue("g_vLightSpecular", &pLightDesc->vSpecular, sizeof(_float4))))
+    if (FAILED(m_pShaderCom->Bind_Matrix("g_ProjMatrix", m_pGameInstance->Get_Shadow_Transform(D3DTS::PROJ))))
         return E_FAIL;
 
     return S_OK;
@@ -196,7 +224,7 @@ HRESULT CBody_Player::Ready_AnimationTable()
 
 HRESULT CBody_Player::Register_AnimationClips()
 {
-    if (nullptr == m_pAnimTable)
+    if (nullptr == m_pAnimController || nullptr == m_pAnimTable)
         return E_FAIL;
 
     for (size_t i = 0; i < m_pAnimTable->iNumBinds; i++)
@@ -208,27 +236,28 @@ HRESULT CBody_Player::Register_AnimationClips()
         Desc.bRestartOnEnter = Bind.bRestartOnEnter;
 
         if (FAILED(m_pAnimController->Register_Clip(
-            Make_CharacterAnimKey(Bind.eState, Bind.eAction, Bind.eWeapon), Desc)))
+            Make_CharacterAnimKey(Bind.eState, Bind.eAction, Bind.eStep, Bind.eWeapon, Bind.eEquippedId), Desc)))
             return E_FAIL;
     }
 
     return S_OK;
 }
 
-HRESULT CBody_Player::Play_Action(CHARACTER_ACTION eAction)
+HRESULT CBody_Player::Play_Action(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep)
 {
     if (nullptr == m_pAnimController || nullptr == m_pAnimTable)
         return E_FAIL;
 
-    const _uint64 iKey = Resolve_ActionKey(eAction);
+    const _uint64 iKey = Resolve_ActionKey(eAction, eStep);
 
-    const CHARACTER_ACTION_POLICY* pPolicy = Find_ActionPolicy(eAction);
+    const CHARACTER_ACTION_POLICY* pPolicy = Find_ActionPolicy(eAction, eStep);
     const _float fBlendTime = (nullptr != pPolicy) ? pPolicy->fEnterBlendTime : 0.f;
 
     if (FAILED(m_pAnimController->Play(iKey, fBlendTime)))
         return E_FAIL;
 
     m_eCurrentAction = eAction;
+    m_eCurrentStep = eStep;
 
     return S_OK;
 }
@@ -258,7 +287,7 @@ CHARACTER_ACTION CBody_Player::Pick_RunEndAction() const
         : CHARACTER_ACTION::RUN_END_RIGHT;
 }
 
-const CHARACTER_ANIM_BIND_DESC* CBody_Player::Find_Bind(CHARACTER_STATE eState, CHARACTER_ACTION eAction, WEAPON_TYPE eWeapon) const
+const CHARACTER_ANIM_BIND_DESC* CBody_Player::Find_Bind(CHARACTER_STATE eState, CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep, WEAPON_TYPE eWeapon, EQUIPPED_WEAPON_ID eEquippedId) const
 {
     if (nullptr == m_pAnimTable)
         return nullptr;
@@ -267,57 +296,68 @@ const CHARACTER_ANIM_BIND_DESC* CBody_Player::Find_Bind(CHARACTER_STATE eState, 
     {
         const CHARACTER_ANIM_BIND_DESC& Bind = m_pAnimTable->pBinds[i];
 
-        if (Bind.eState == eState && Bind.eAction == eAction && Bind.eWeapon == eWeapon)
+        if (Bind.eState == eState && Bind.eAction == eAction && Bind.eStep == eStep && Bind.eWeapon == eWeapon && Bind.eEquippedId == eEquippedId)
             return &Bind;
     }
 
     return nullptr;
 }
 
-_uint64 CBody_Player::Resolve_ActionKey(CHARACTER_ACTION eAction)
+_uint64 CBody_Player::Resolve_ActionKey(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep)
 {
     if (nullptr == m_pAnimTable)
         return 0;
-    
-    auto try_match = [&](CHARACTER_STATE eState, WEAPON_TYPE eWeapon) -> const CHARACTER_ANIM_BIND_DESC*
+
+    auto try_match = [&](CHARACTER_STATE eState, CHARACTER_ACTION_STEP eStep, WEAPON_TYPE eWeapon, EQUIPPED_WEAPON_ID eEquippedId) -> const CHARACTER_ANIM_BIND_DESC*
         {
             for (size_t i = 0; i < m_pAnimTable->iNumBinds; i++)
             {
                 const CHARACTER_ANIM_BIND_DESC& bindDesc = m_pAnimTable->pBinds[i];
-                if (bindDesc.eState == eState && bindDesc.eAction == eAction && bindDesc.eWeapon == eWeapon)
+                if (bindDesc.eState == eState && bindDesc.eAction == eAction && bindDesc.eStep == eStep && bindDesc.eWeapon == eWeapon && bindDesc.eEquippedId == eEquippedId)
                     return &bindDesc;
             }
             return nullptr;
         };
 
-    auto try_match_anystate = [&](WEAPON_TYPE eWeapon) -> const CHARACTER_ANIM_BIND_DESC*
+    auto try_match_anystate = [&](CHARACTER_ACTION_STEP eStep, WEAPON_TYPE eWeapon, EQUIPPED_WEAPON_ID eEquippedId) -> const CHARACTER_ANIM_BIND_DESC*
         {
             for (size_t i = 0; i < m_pAnimTable->iNumBinds; i++)
             {
                 const CHARACTER_ANIM_BIND_DESC& bindDesc = m_pAnimTable->pBinds[i];
-                if (bindDesc.eAction == eAction && bindDesc.eWeapon == eWeapon)
+                if (bindDesc.eAction == eAction && bindDesc.eStep == eStep && bindDesc.eWeapon == eWeapon && bindDesc.eEquippedId == eEquippedId)
                     return &bindDesc;
             }
             return nullptr;
         };
 
-    const CHARACTER_ANIM_BIND_DESC* pBind = try_match(m_eCurrentState, m_eWeaponState);
+    // STATE + WEAPON 매칭 → EQUIPPED_ID 우선, 없으면 NONE 폴백
+    const CHARACTER_ANIM_BIND_DESC* pBind = try_match(m_eCurrentState, eStep, m_eWeaponState, m_eEquippedWeaponId);
     if (nullptr == pBind)
-        pBind = try_match(m_eCurrentState, WEAPON_TYPE::DEFAULT);
+        pBind = try_match(m_eCurrentState, eStep, m_eWeaponState, EQUIPPED_WEAPON_ID::NONE);
+
+    // STATE + DEFAULT 폴백
     if (nullptr == pBind)
-        pBind = try_match_anystate(m_eWeaponState);
+        pBind = try_match(m_eCurrentState, eStep, WEAPON_TYPE::DEFAULT, EQUIPPED_WEAPON_ID::NONE);
+
+    // ANYSTATE + WEAPON 폴백 (EQUIPPED_ID 우선, 없으면 NONE)
     if (nullptr == pBind)
-        pBind = try_match_anystate(WEAPON_TYPE::DEFAULT);
+        pBind = try_match_anystate(eStep, m_eWeaponState, m_eEquippedWeaponId);
+    if (nullptr == pBind)
+        pBind = try_match_anystate(eStep, m_eWeaponState, EQUIPPED_WEAPON_ID::NONE);
+
+    // ANYSTATE + DEFAULT 최종 폴백
+    if (nullptr == pBind)
+        pBind = try_match_anystate(eStep, WEAPON_TYPE::DEFAULT, EQUIPPED_WEAPON_ID::NONE);
 
     if (nullptr == pBind)
         return 0;
 
     m_eCurrentState = pBind->eState;
 
-    return Make_CharacterAnimKey(pBind->eState, eAction, pBind->eWeapon);
+    return Make_CharacterAnimKey(pBind->eState, eAction, pBind->eStep, pBind->eWeapon, pBind->eEquippedId);
 }
 
-const CHARACTER_ACTION_POLICY* CBody_Player::Find_ActionPolicy(CHARACTER_ACTION eAction) const
+const CHARACTER_ACTION_POLICY* CBody_Player::Find_ActionPolicy(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep) const
 {
     if (nullptr == m_pAnimTable)
         return nullptr;
@@ -326,7 +366,7 @@ const CHARACTER_ACTION_POLICY* CBody_Player::Find_ActionPolicy(CHARACTER_ACTION 
     {
         const CHARACTER_ACTION_POLICY& Policy = m_pAnimTable->pPolicies[i];
 
-        if (Policy.eAction == eAction)
+        if (Policy.eAction == eAction && Policy.eStep == eStep)
             return &Policy;
     }
 

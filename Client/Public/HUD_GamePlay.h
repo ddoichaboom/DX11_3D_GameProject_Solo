@@ -8,6 +8,7 @@ class CMonster;
 class CPlayer;
 class CUI_Image;
 class CUI_Text;
+class CUI_SpriteAnim;
 
 class CLIENT_DLL CHUD_GamePlay final : public CGameObject
 {
@@ -23,6 +24,8 @@ public:
 	void							Notify_Death(CMonster* pMonster);
 	void							Notify_DashInput();
 	void							Notify_CombatInput();
+	void							Notify_ComboHit();
+	void							Notify_Crash();
 
 public:
 	virtual HRESULT					Initialize_Prototype() override;
@@ -48,6 +51,15 @@ private:
 	void                            Tick_MonsterBars(_float fTimeDelta);
 	void                            Tick_PlayerBars(_float fTimeDelta);
 	void                            Tick_Dash(_float fTimeDelta);
+	void                            Tick_Skills(_float fTimeDelta);
+	void                            Refresh_SkillIcons(EQUIPPED_WEAPON_ID eWeapon);
+
+	void							Tick_Combo(_float fTimeDelta);
+	void							Ensure_CrashUIs();
+	void							Tick_CrashEffect(_float fTimeDelta);
+	void							Set_CrashVisible(_bool bVisible);
+	void							Spawn_CrashAtlasEffect();
+	_int							Combo_RankFromCount(_int iCount) const;
 
 	void                            Set_MonsterBars_Visible(_bool bVisible);
 	void							Set_PlayerBars_Visible(_bool bVisible);
@@ -60,7 +72,42 @@ private:
 	_float							m_fSinceLastHit = { 0.f };
 
 	CPlayer*						m_pPlayer = { nullptr };
+	EQUIPPED_WEAPON_ID              m_eCachedWeaponId = { EQUIPPED_WEAPON_ID::NONE };
+	CUI_Text*                       m_pSkillKeyText[6] = {};
+	_float                          m_fSkillActiveFlash[5] = {};
+	_float                          m_fPrevSkillCooldown[5] = {};
+	CUI_Text*                       m_pQuestText[3] = {};
+	static constexpr _float         SKILL_ACTIVE_FLASH = { 0.6f };
+
+	CUI_SpriteAnim*					m_pComboRank = { nullptr };
+	CUI_SpriteAnim*					m_pComboDigit[3] = {};      // [0]=일 [1]=십 [2]=백 (우측정렬)
+	_float                          m_fComboRankBaseW = { 0.f };
+	_float                          m_fComboRankBaseH = { 0.f };
+	_int                            m_iComboCount = { 0 };
+	_int                            m_iComboRank = { -1 };       // -1 = 콤보 없음
+	_float                          m_fComboDecayTimer = { 0.f };
+	_float                          m_fRankPopTimer = { 0.f };
+	static constexpr _float         COMBO_DECAY_STEP = { 5.0f };
+	static constexpr _float         RANK_POP_DURATION = { 0.28f };
+	static constexpr _int           COMBO_THRESHOLD[7] = { 1, 5, 10, 30, 50, 100, 200 };
+
+	static constexpr _float         RANK_POP_SCALE_MAX = { 1.35f };
+	CUI_Text*						m_pComboHitsText = { nullptr };
+	_float                          m_fComboDigitBaseX[3] = {};
+	_float                          m_fComboDigitBaseY[3] = {};
+	_float                          m_fComboHitsBaseX = { 0.f };
+	_float                          m_fComboHitsBaseY = { 0.f };
+	_float                          m_fComboHitBounce = { 0.f };
+	static constexpr _float         HIT_BOUNCE_DURATION = { 0.15f };
+	static constexpr _float         DIGIT_BOUNCE_X = { 4.f };
+	static constexpr _float         HITS_BOUNCE_X = { 14.f };
+
 	CUI_Image*						m_pUI[ETOUI(HUD_SLOT::END)] = {};
+	CUI_Image*						m_pCrashUI[4] = {};
+	_bool							m_bCrashEffectPlaying = { false };
+	_float						m_fCrashEffectElapsed = { 0.f };
+	static constexpr _float			CRASH_EFFECT_DURATION = { 0.55f };
+
 	CUI_Text*						m_pUI_MonsterLevel = { nullptr };
 	CUI_Text*						m_pUI_MonsterName = { nullptr };
 	CMonster*						m_pLastTextTarget = { nullptr };

@@ -27,6 +27,13 @@ protected:
 	virtual ~CUI_Video() = default;
 
 public:
+	void						Play();
+	void						Pause();
+	void						Stop();
+	void						Reset();
+	_bool						Is_Playing() const { return m_bPlaying; }
+	_bool						Is_Finished() const;
+
 	virtual HRESULT				Initialize_Prototype() override;
 	virtual HRESULT				Initialize(void* pArg) override;
 	virtual void				Update(_float fTimeDelta) override;
@@ -37,6 +44,7 @@ private:
 	CShader*					m_pShaderCom = { nullptr };
 	CVIBuffer*					m_pVIBufferCom = { nullptr };
 	CVideoTexture*				m_pVideoTexture = { nullptr };
+	_bool						m_bPlaying = { false };
 
 private:
 	HRESULT						Ready_Components(const _tchar* pVideoPath, _bool bLoop, _float fSpeed);

@@ -36,15 +36,50 @@ HRESULT CUI_Video::Initialize(void* pArg)
     if (FAILED(Ready_Components(pDesc->pVideoPath, pDesc->bLoop, pDesc->fPlaybackSpeed)))
         return E_FAIL;
 
+
+    m_bPlaying = pDesc->bVisible;
     return S_OK;
+}
+
+void CUI_Video::Play()
+{
+    m_bPlaying = true;
+    Set_Visible(true);
+}
+
+void CUI_Video::Pause()
+{
+    m_bPlaying = false;
+}
+
+void CUI_Video::Stop()
+{
+    m_bPlaying = false;
+    Set_Visible(false);
+
+    if (nullptr != m_pVideoTexture)
+        m_pVideoTexture->Reset();
+}
+
+void CUI_Video::Reset()
+{
+    if (nullptr != m_pVideoTexture)
+        m_pVideoTexture->Reset();
+}
+
+_bool CUI_Video::Is_Finished() const
+{
+    return (nullptr != m_pVideoTexture) ? m_pVideoTexture->Is_Finished() : true;
 }
 
 void CUI_Video::Update(_float fTimeDelta)
 {
+    if (false == m_bVisible || false == m_bPlaying)
+        return;
+
     if (m_pVideoTexture)
         m_pVideoTexture->Update(fTimeDelta);
 }
-
 void CUI_Video::Late_Update(_float fTimeDelta)
 {
     if (!m_bVisible)
@@ -55,10 +90,16 @@ void CUI_Video::Late_Update(_float fTimeDelta)
 
 HRESULT CUI_Video::Render()
 {
+    if (nullptr != m_pVideoTexture)
+    {
+        if (FAILED(m_pVideoTexture->Upload_ReadyFrame()))
+            return E_FAIL;
+    }
+
     if (FAILED(Bind_ShaderResources()))
         return E_FAIL;
 
-    if (FAILED(m_pShaderCom->Begin(1)))     // UIPass
+    if (FAILED(m_pShaderCom->Begin(1)))
         return E_FAIL;
 
     if (FAILED(m_pVIBufferCom->Bind_Resources()))
@@ -111,6 +152,11 @@ HRESULT CUI_Video::Bind_ShaderResources()
     const _float fOne = 1.f;
     if (FAILED(m_pShaderCom->Bind_RawValue("g_fAlpha", &fOne, sizeof(_float))))
         return E_FAIL;
+
+    if (FAILED(m_pShaderCom->Bind_RawValue("g_fGaugeProgress", &fOne, sizeof(_float))))
+        return E_FAIL;
+
+
 
     return S_OK;
 }

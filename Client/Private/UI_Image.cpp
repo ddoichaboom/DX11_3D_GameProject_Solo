@@ -1,5 +1,6 @@
 #include "UI_Image.h"
 #include "GameInstance.h"
+#include "Texture.h"
 
 CUI_Image::CUI_Image(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	: CUIObject{ pDevice, pContext }
@@ -22,6 +23,20 @@ void CUI_Image::Set_GaugeRatio(_float fRatio)
 		fRatio = 1.f;
 
 	m_fGaugeProgress = fRatio;
+}
+
+HRESULT CUI_Image::Set_TextureByProto(_uint iLevel, const _tchar* pProtoTag)
+{
+	if (nullptr == pProtoTag || L'\0' == pProtoTag[0] || nullptr == m_pGameInstance)
+		return E_FAIL;
+
+	CBase* pClone = m_pGameInstance->Clone_Prototype(PROTOTYPE::COMPONENT, iLevel, pProtoTag);
+	if (nullptr == pClone)
+		return E_FAIL;
+
+	Safe_Release(m_pTextureCom);
+	m_pTextureCom = static_cast<CTexture*>(pClone);
+	return S_OK;
 }
 
 void CUI_Image::Set_Center(_float fCenterX, _float fCenterY)
@@ -116,7 +131,13 @@ HRESULT CUI_Image::Render()
 	if (m_eSweepMode == UI_SWEEP_MODE::POSITION)
 		iPassIndex = 3;     
 	else if (m_eSweepMode == UI_SWEEP_MODE::UV)
-		iPassIndex = 4;     
+		iPassIndex = 4;
+	else if (m_eSweepMode == UI_SWEEP_MODE::BOX)
+		iPassIndex = 5;
+	else if (m_eSweepMode == UI_SWEEP_MODE::FILL)
+		iPassIndex = 6;
+	else if (m_eSweepMode == UI_SWEEP_MODE::GAUGE_V)
+		iPassIndex = 7;     
 
 	if (FAILED(m_pShaderCom->Begin(iPassIndex)))
 		return E_FAIL;
@@ -181,6 +202,11 @@ HRESULT CUI_Image::Bind_ShaderResources()
 		return E_FAIL;
 
 	if (FAILED(m_pShaderCom->Bind_RawValue("g_fGaugeProgress", &m_fGaugeProgress, sizeof(_float))))
+		return E_FAIL;
+
+	(void)m_bGaugeVertical;
+
+	if (FAILED(m_pShaderCom->Bind_RawValue("g_vColor", &m_vColor, sizeof(_float4))))
 		return E_FAIL;
 
 	if (m_eSweepMode != UI_SWEEP_MODE::NONE)

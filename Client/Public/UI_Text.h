@@ -34,8 +34,17 @@ public:
 
 public:
     void                    Set_Text(const _tchar* pText) { m_strText = (pText ? pText : TEXT("")); }
+
+    const                   _float4& Get_Color() const { return m_vColor; }
     void                    Set_Color(const _float4& vColor) { m_vColor = vColor; }
     void                    Set_Scale(_float fScale) { m_fScale = fScale; }
+
+    void                    Set_Center(_float fCenterX, _float fCenterY);
+    _float                  Get_CenterX() const { return m_fCenterX; }
+    _float                  Get_CenterY() const { return m_fCenterY; }
+    
+    void                    Set_EffectScale(_float fScale) { m_fEffectScale = fScale; }
+    _float                  Get_EffectScale() const { return m_fEffectScale; }
     void                    Set_Rotation(_float fRotation) { m_fRotation = fRotation; }
 
     void                    Set_AlphaPulse(_float fSpeed, _float fMinAlpha, _float fMaxAlpha);
@@ -61,6 +70,8 @@ private:
     _float                  m_fPulseMin = { 0.3f };
     _float                  m_fPulseMax = { 1.f };
     _float                  m_fPulseTime = { 0.f };
+
+    _float                  m_fEffectScale = { 1.f };
 
 public:
     static CUI_Text*        Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

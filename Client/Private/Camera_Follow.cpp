@@ -39,36 +39,48 @@ HRESULT CCamera_Follow::Initialize(void* pArg)
 		? TEXT("Layer_Player")
 		: pDesc->strTargetLayerTag;
 
+	if (nullptr != pDesc->pCamColliderVertices)
+		m_CamColliderVertices = *pDesc->pCamColliderVertices;
+
+	if (nullptr != pDesc->pCamColliderFaces)
+		m_CamColliderFaces = *pDesc->pCamColliderFaces;
+
 	return S_OK;
 }
 
 void CCamera_Follow::Priority_Update(_float fTimeDelta)
 {
-
-}
-
-void CCamera_Follow::Update(_float fTimeDelta)
-{
-}
-
-void CCamera_Follow::Late_Update(_float fTimeDelta)
-{
-	if (m_pGameInstance->Is_GameLogic_Frozen())
+	if (false == Is_ActiveCamera())
 		return;
 
-	// (1) 입력 수집 & SpringArm에 전달
 	_long lDX = m_pGameInstance->Get_MouseDelta(MOUSEAXIS::X);
 	_long lDY = m_pGameInstance->Get_MouseDelta(MOUSEAXIS::Y);
 
 	Rebind_Target();
 
 	m_pSpringArm->Update_Rotation(lDX, lDY);
+	Apply_CamCollider();
 	m_pSpringArm->Update_Arm(fTimeDelta);
 
-	// 2) SpringArm 결과를 Transform State 로 적용
 	Apply_SpringArmToTransform();
 
-	__super::Update_PipeLine();
+	__super::Priority_Update(fTimeDelta);
+}
+
+void CCamera_Follow::Update(_float fTimeDelta)
+{
+	if (false == Is_ActiveCamera())
+		return;
+
+	__super::Update(fTimeDelta);
+}
+
+void CCamera_Follow::Late_Update(_float fTimeDelta)
+{
+	if (false == Is_ActiveCamera())
+		return;
+
+	__super::Late_Update(fTimeDelta);
 }
 
 HRESULT CCamera_Follow::Render()
@@ -106,6 +118,57 @@ HRESULT CCamera_Follow::Ready_Components(const CAMERA_FOLLOW_DESC& Desc)
 		return E_FAIL;
 
 	return S_OK;
+}
+
+void CCamera_Follow::Apply_CamCollider()
+{
+	if (nullptr == m_pSpringArm ||
+		m_CamColliderVertices.empty() ||
+		m_CamColliderFaces.empty())
+		return;
+
+	_vector vTarget = m_pSpringArm->Get_TargetPoint();
+	_vector vLook = m_pSpringArm->Get_LookDirection();
+	const _float fIdealDistance = m_pSpringArm->Get_IdealDistance();
+
+	if (fIdealDistance <= 0.f)
+		return;
+
+	_float fNearestDistance = fIdealDistance;
+	_bool bHit = false;
+
+	for (const CAMCOLLIDER_FACE& Face : m_CamColliderFaces)
+	{
+		const _int i0 = Face.iVertexIndices[0];
+		const _int i1 = Face.iVertexIndices[1];
+		const _int i2 = Face.iVertexIndices[2];
+
+		if (i0 < 0 || i1 < 0 || i2 < 0 ||
+			static_cast<size_t>(i0) >= m_CamColliderVertices.size() ||
+			static_cast<size_t>(i1) >= m_CamColliderVertices.size() ||
+			static_cast<size_t>(i2) >= m_CamColliderVertices.size())
+			continue;
+
+		_float fDistance = 0.f;
+		const _vector v0 = XMLoadFloat3(&m_CamColliderVertices[i0]);
+		const _vector v1 = XMLoadFloat3(&m_CamColliderVertices[i1]);
+		const _vector v2 = XMLoadFloat3(&m_CamColliderVertices[i2]);
+
+		if (TriangleTests::Intersects(vTarget, -vLook, v0, v1, v2, fDistance) &&
+			fDistance >= 0.f &&
+			fDistance <= fIdealDistance &&
+			fDistance < fNearestDistance)
+		{
+			fNearestDistance = fDistance;
+			bHit = true;
+		}
+	}
+
+	if (true == bHit)
+	{
+		const _float fSafeDistance = max(0.f, fNearestDistance - m_fCamColliderPadding);
+		m_pSpringArm->Set_DesiredDistance(fSafeDistance);
+	}
 }
 
 void CCamera_Follow::Apply_SpringArmToTransform()

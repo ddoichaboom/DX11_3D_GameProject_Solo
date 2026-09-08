@@ -24,6 +24,8 @@ public:
 	
 private:
 	void                        Cache_UIElements();
+	void						Cache_MenuBtnBaseColors();
+	_float4						Get_MenuButtonBaseColor(MENU_ITEM eItem) const;
 	void                        Enter_Title();
 	void                        Enter_Menu();
 	void                        Update_Title(_float fTimeDelta);
@@ -35,15 +37,24 @@ private:
 
 	void                        Dispatch_Action(MENU_ITEM eItem);
 
+	void						Update_PressAnyKeyBounce(_float fTimeDelta);
+
 private:
 	LOGO_STATE                  m_eState = { LOGO_STATE::TITLE };
 	MENU_ITEM					m_eHovered = { MENU_ITEM::END };
+
+	static constexpr _uint		MENU_ITEM_COUNT = ETOUI(MENU_ITEM::END);
+
+	_float4						m_vMenuBtnBaseColor[MENU_ITEM_COUNT] = { };
 
 	CUI_Text*					m_pPressAnyKey = { nullptr };
 	CUI_Text*					m_pBtnStart = { nullptr };
 	CUI_Text*					m_pBtnOptions = { nullptr };
 	CUI_Text*					m_pBtnQuit = { nullptr };
 	CUI_Image*					m_pMenuPanelBg = { nullptr };
+
+	_float						m_fPressBounceTime = { 0.f };
+	_float						m_fPressBaseScale = { 1.f };
 
 public:
 	static CLevel_Logo*			Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext);

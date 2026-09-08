@@ -12,6 +12,7 @@ HRESULT CCustomFont::Initialize(const _tchar* pFontFilePath)
 {
 	m_pBatch = new SpriteBatch(m_pContext);
 	m_pFont = new SpriteFont(m_pDevice, pFontFilePath);
+	m_pFont->SetDefaultCharacter(L'?');
 
 	return S_OK;
 }

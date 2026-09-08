@@ -14,6 +14,7 @@ NS_BEGIN(Client)
 
 class CBody_Monster;
 class CWeapon;
+class CWeaponTrailEffect;
 class CMonster_StateMachine;
 class CPlayer;
 
@@ -23,7 +24,7 @@ public:
 	typedef struct tagMonsterDesc : public CGameObject::GAMEOBJECT_DESC
 	{
 		CNavMesh*			pNavMesh = { nullptr };
-		_int				iStartCellIndex = { NAVMESH_INVALID_INDEX };
+		_int				iStartCellIndex = { INVALID_INDEX };
 
 		SPAWN_TYPE			eSpawnType = { SPAWN_TYPE::END };
 		MONSTER_ANIM_SET	eAnimSet = { MONSTER_ANIM_SET::NONE };
@@ -63,13 +64,17 @@ public:
 	_float                      Get_MaxBreak() const { return m_fMaxBreak; }
 	_float                      Get_CurrentBreak() const { return m_fCurrentBreak; }
 
+	void						Force_Break();
+
 	void						Take_Damage(_float fAmount);
 
-	void						Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_ACTION_STEP eFromStep,
+	virtual void				Handle_ActionTransition(MONSTER_ACTION eFromAction, MONSTER_ACTION_STEP eFromStep,
 														MONSTER_ACTION eToAction, MONSTER_ACTION_STEP eToStep,
 														_bool bInitial);
 
 	void						Set_WeaponHitboxActive(_bool bActive);
+	void						Set_WeaponTrailActive(_bool bActive);
+	virtual void				On_AttackHitboxNotify(_bool bActive);
 
 #ifdef _DEBUG
 public:
@@ -110,11 +115,12 @@ protected:
 protected:
 	HRESULT						Ready_Components(const MONSTER_DESC& Desc);
 	virtual HRESULT				Ready_PartObjects(const MONSTER_DESC& Desc);
+	HRESULT						Ready_WeaponTrailEffect();
 	HRESULT						Ready_StateMachine();
 
 	_bool                       Resolve_NavigationPosition(const _float3& vCandidatePosition, _float3* pOutPosition);
 	_bool                       Try_ApplyMovementPosition(const _float3& vCandidatePosition);
-	void                        Apply_RootMotion(const _float3& vLocalDelta);
+	virtual void                Apply_RootMotion(const _float3& vLocalDelta);
 	
 	void						On_WeaponHitEnter(CCollider* pOther);
 
@@ -122,6 +128,7 @@ protected:
 	CNavigationAgent*			m_pNavigationAgent = { nullptr };
 	CBody_Monster*				m_pBody = { nullptr };
 	CWeapon*					m_pWeapon = { nullptr };
+	CWeaponTrailEffect*			m_pWeaponTrail = { nullptr };
 	CCollider*					m_pCollider = { nullptr };
 	CMonster_StateMachine*		m_pStateMachine = { nullptr };
 	CGameObject*				m_pTarget = { nullptr };
@@ -136,11 +143,12 @@ protected:
 	_bool						m_bHasBreak = { false };
 	_float						m_fMaxBreak = { 1.f };
 	_float						m_fCurrentBreak = { 1.f };
+	_bool						m_bPreserveBreakOnCrashExit = { false };
 
 	_int						m_iLevel = { 1 };
 	_wstring					m_strDisplayName; 
 
-	_float						m_fCrashDurationMax = { 15.f };
+	_float						m_fCrashDurationMax = { 10.f };
 	_float						m_fCrashDurationCurrent = { 0.f };
 
 	set<CGameObject*>			m_AttackHitTargets;

@@ -6,8 +6,12 @@ texture2D g_Texture;
 float4 g_vUVOffsetScale = float4(0.f, 0.f, 1.f, 1.f);
 float g_fAlpha = 1.f;
 float g_fGaugeProgress = 1.f;
+float g_fGaugeVertical = 0.f;   // 0=horizontal / 1=vertical(bottom->top)
 float4 g_vSweepTint = float4(1.f, 1.f, 1.f, 1.f);
 float4 g_vUVOffset = float4(0.f, 0.f, 0.f, 0.f);
+float4 g_vColor = float4(1.f, 1.f, 1.f, 1.f);
+float g_fAreaInnerRatio = 0.f;
+float g_fAreaFillRatio = 1.f;
 
 // 셰이더의 입력 구조체는 C++ 측 정점 구조체 VTXTEX와 1:1 대응 해야 함.
 struct VS_IN
@@ -130,6 +134,22 @@ PS_OUT PS_SWEEP(PS_IN In)
     return Out;
 }
 
+PS_OUT PS_SLASH_PROJECTILE(PS_IN In)
+{
+    PS_OUT Out;
+
+    float4 vTex = g_Texture.Sample(LinearSampler, In.vTexcoord);
+    float fLum = max(vTex.r, max(vTex.g, vTex.b));
+    float fMask = smoothstep(0.06f, 0.35f, fLum);
+
+    if (fMask < 0.03f)
+        discard;
+
+    Out.vColor.rgb = lerp(g_vSweepTint.rgb * 0.55f, g_vSweepTint.rgb, fLum);
+    Out.vColor.a = fMask * g_vSweepTint.a * g_fAlpha;
+
+    return Out;
+}
 PS_OUT PS_SWEEP_GLOW(PS_IN In)
 {
     PS_OUT Out;
@@ -159,6 +179,61 @@ PS_OUT PS_SWEEP_GLOW(PS_IN In)
     return Out;
 }
 
+PS_OUT PS_BOX(PS_IN In)
+{
+    PS_OUT Out;
+    float2 uv = In.vTexcoord;
+    float bw = 0.12f;
+    bool edge = (uv.x < bw || uv.x > 1.f - bw || uv.y < bw || uv.y > 1.f - bw);
+    Out.vColor = edge ? float4(1.f, 1.f, 1.f, 0.5f) : float4(g_vColor.rgb, g_vColor.a);
+    Out.vColor.a *= g_fAlpha;
+    return Out;
+}
+
+PS_OUT PS_FILL(PS_IN In)
+{
+    PS_OUT Out;
+    Out.vColor = g_vColor;
+    Out.vColor.a *= g_fAlpha;
+    return Out;
+}
+
+PS_OUT PS_GAUGE_V(PS_IN In)
+{
+    PS_OUT Out;
+    Out.vColor = g_Texture.Sample(LinearSampler, In.vTexcoord);
+    if (In.vTexcoord.y < 1.f - g_fGaugeProgress)
+        discard;
+    if (Out.vColor.a < 0.05f)
+        discard;
+    Out.vColor.a *= g_fAlpha;
+    return Out;
+}
+
+PS_OUT PS_AREA_TELEGRAPH(PS_IN In)
+{
+    PS_OUT Out;
+
+    float2 vCenterUV = In.vTexcoord - float2(0.5f, 0.5f);
+    float fDist = length(vCenterUV) * 2.f;
+    float fOuterByFill = lerp(g_fAreaInnerRatio, 1.f, saturate(g_fAreaFillRatio));
+
+    if (fDist < g_fAreaInnerRatio || fDist > fOuterByFill || fDist > 1.f)
+        discard;
+
+    float4 vTex = g_Texture.Sample(LinearSampler, In.vTexcoord);
+    float fMask = max(max(vTex.r, vTex.g), max(vTex.b, vTex.a));
+
+    if (fMask < 0.03f)
+        discard;
+
+    float fEdge = 1.f - smoothstep(0.92f, 1.f, fDist);
+    float fInnerEdge = smoothstep(g_fAreaInnerRatio, g_fAreaInnerRatio + 0.035f, fDist);
+    float fAlpha = fMask * g_vColor.a * fEdge * fInnerEdge;
+
+    Out.vColor = float4(g_vColor.rgb, fAlpha);
+    return Out;
+}
 technique11 DefaultTechnique
 {
     pass DefaultPass
@@ -210,5 +285,53 @@ technique11 DefaultTechnique
         VertexShader = compile vs_5_0 VS_MAIN();
         PixelShader = compile ps_5_0 PS_SWEEP_GLOW();
     }
-}
+
+    pass BoxPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_BOX();
+    }
+
+    pass FillPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_FILL();
+    }
+
+    pass GaugeVPass
+    {
+        SetRasterizerState(RS_Default);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_GAUGE_V();
+    }
+    pass AreaTelegraphPass
+    {
+        SetRasterizerState(RS_Cull_None);
+        SetDepthStencilState(DSS_Default, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_AREA_TELEGRAPH();
+    }
+
+    pass SlashProjectilePass
+    {
+        SetRasterizerState(RS_Cull_None);
+        SetDepthStencilState(DSS_NONE, 0);
+        SetBlendState(BS_AlphaBlend, float4(0.f, 0.f, 0.f, 0.f), 0xffffffff);
+
+        VertexShader = compile vs_5_0 VS_MAIN();
+        PixelShader = compile ps_5_0 PS_SLASH_PROJECTILE();
+    }}
 

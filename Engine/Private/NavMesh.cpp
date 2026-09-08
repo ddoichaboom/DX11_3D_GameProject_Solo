@@ -87,7 +87,7 @@ _int CNavMesh::Find_Vertex(const _float3& vPosition, _float fSnapRadius) const
 			return static_cast<_int>(i);
 	}
 
-	return NAVMESH_INVALID_INDEX;
+	return INVALID_INDEX;
 }
 
 _int CNavMesh::Add_Vertex(const _float3& vPosition)
@@ -101,7 +101,7 @@ _int CNavMesh::Find_OrAddVertex(const _float3& vPosition, _float fSnapRadius)
 {
 	const _int iVertexIndex = Find_Vertex(vPosition, fSnapRadius);
 
-	if (NAVMESH_INVALID_INDEX != iVertexIndex)
+	if (INVALID_INDEX != iVertexIndex)
 		return iVertexIndex;
 
 	return Add_Vertex(vPosition);
@@ -116,7 +116,7 @@ HRESULT CNavMesh::Move_Vertex(_int iVertexIndex, const _float3& vPosition, _floa
 	{
 		const _int iFoundVertexIndex = Find_Vertex(vPosition, fMergeRejectRadius);
 
-		if (NAVMESH_INVALID_INDEX != iFoundVertexIndex &&
+		if (INVALID_INDEX != iFoundVertexIndex &&
 			iFoundVertexIndex != iVertexIndex)
 			return E_FAIL;
 	}
@@ -138,7 +138,7 @@ HRESULT CNavMesh::Move_Vertex(_int iVertexIndex, const _float3& vPosition, _floa
 HRESULT CNavMesh::Add_Cell(const NAVMESH_CELL& Cell, _int* pOutCellIndex)
 {
 	if (nullptr != pOutCellIndex)
-		*pOutCellIndex = NAVMESH_INVALID_INDEX;
+		*pOutCellIndex = INVALID_INDEX;
 
 	const _int iCellIndex = static_cast<_int>(m_CellDescs.size());
 
@@ -166,7 +166,7 @@ HRESULT CNavMesh::Add_Cell(const NAVMESH_CELL& Cell, _int* pOutCellIndex)
 HRESULT CNavMesh::Try_AddCell(_int iVertex0, _int iVertex1, _int iVertex2, _int* pOutCellIndex)
 {
 	if (nullptr != pOutCellIndex)
-		*pOutCellIndex = NAVMESH_INVALID_INDEX;
+		*pOutCellIndex = INVALID_INDEX;
 
 	if (false == Is_ValidVertexIndex(iVertex0) ||
 		false == Is_ValidVertexIndex(iVertex1) ||
@@ -382,7 +382,7 @@ _int CNavMesh::Find_Cell(const _float3& vPosition) const
 			return static_cast<_int>(i);
 	}
 
-	return NAVMESH_INVALID_INDEX;
+	return INVALID_INDEX;
 }
 
 _bool CNavMesh::Try_Move(_int* pCurrentCellIndex, const _float3& vCandidatePosition, _float3* pOutAdjustedPosition) const
@@ -405,7 +405,7 @@ _bool CNavMesh::Try_Move(_int* pCurrentCellIndex, const _float3& vCandidatePosit
 		*pCurrentCellIndex = iCurrentCellIndex;
 	}
 
-	_int iNeighborIndex = NAVMESH_INVALID_INDEX;
+	_int iNeighborIndex = INVALID_INDEX;
 
 	if (true == m_Cells[iCurrentCellIndex]->Is_In(vCandidatePosition, &iNeighborIndex))
 	{
@@ -426,7 +426,7 @@ _bool CNavMesh::Try_Move(_int* pCurrentCellIndex, const _float3& vCandidatePosit
 		++iHopCount;
 
 		const _int iNextCellIndex = iNeighborIndex;
-		iNeighborIndex = NAVMESH_INVALID_INDEX;
+		iNeighborIndex = INVALID_INDEX;
 
 		if (true == m_Cells[iNextCellIndex]->Is_In(vCandidatePosition, &iNeighborIndex))
 		{
@@ -458,7 +458,7 @@ HRESULT CNavMesh::Rebuild_Neighbors()
 	for (auto& CellDesc : m_CellDescs)
 	{
 		for (_uint iLine = 0; iLine < ETOUI(NAVMESH_LINE::END); ++iLine)
-			CellDesc.iNeighborIndices[iLine] = NAVMESH_INVALID_INDEX;
+			CellDesc.iNeighborIndices[iLine] = INVALID_INDEX;
 	}
 
 	if (FAILED(Rebuild_CellObjects()))

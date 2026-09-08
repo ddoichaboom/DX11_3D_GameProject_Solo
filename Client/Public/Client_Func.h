@@ -3,11 +3,28 @@
 
 namespace Client
 {
-	inline _uint64 Make_CharacterAnimKey(CHARACTER_STATE eState, CHARACTER_ACTION eAction, WEAPON_TYPE eWeapon)
+	inline _uint64 Make_CharacterAnimKey(CHARACTER_STATE eState, CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep,	WEAPON_TYPE eWeapon, EQUIPPED_WEAPON_ID eEquippedId = EQUIPPED_WEAPON_ID::NONE)
 	{
-		return (ETOUI64(eState) << 32) |
-			(ETOUI64(eAction) << 16) |
-			ETOUI64(eWeapon);
+		return (ETOUI64(eState) << 56) |
+			(ETOUI64(eAction) << 48) |
+			(ETOUI64(eStep) << 40) |
+			(ETOUI64(eWeapon) << 32) |
+			(ETOUI64(eEquippedId) << 24);
+	}
+
+	inline _uint Make_PlayerStateKey(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep = CHARACTER_ACTION_STEP::NONE)
+	{
+		return (ETOUI(eAction) << 8) | ETOUI(eStep);
+	}
+
+	inline CHARACTER_ACTION Get_PlayerActionFromStateKey(_uint iKey)
+	{
+		return static_cast<CHARACTER_ACTION>(iKey >> 8);
+	}
+
+	inline CHARACTER_ACTION_STEP Get_PlayerStepFromStateKey(_uint iKey)
+	{
+		return static_cast<CHARACTER_ACTION_STEP>(iKey & 0xff);
 	}
 
 	inline _uint64 Make_MonsterAnimKey(MONSTER_ACTION eAction, MONSTER_PHASE ePhase, MONSTER_ACTION_STEP eStep)

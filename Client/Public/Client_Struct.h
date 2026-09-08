@@ -9,7 +9,9 @@ namespace Client
 	{
 		CHARACTER_STATE				eState			= { CHARACTER_STATE::END };
 		CHARACTER_ACTION			eAction			= { CHARACTER_ACTION::END };
+		CHARACTER_ACTION_STEP		eStep			= { CHARACTER_ACTION_STEP::NONE };
 		WEAPON_TYPE					eWeapon			= { WEAPON_TYPE::END };
+		EQUIPPED_WEAPON_ID			eEquippedId		= { EQUIPPED_WEAPON_ID::NONE };
 		const _char*				pAnimationName	= { nullptr };
 		_bool						bRestartOnEnter = { true };
 	}CHARACTER_ANIM_BIND_DESC;
@@ -17,10 +19,15 @@ namespace Client
 	typedef struct tagCharacterActionPolicy
 	{
 		CHARACTER_ACTION			eAction = { CHARACTER_ACTION::END };
+		CHARACTER_ACTION_STEP		eStep = { CHARACTER_ACTION_STEP::NONE };
 		_uint						iPriority = {};
 		_bool						bAutoReturn = { false };
 		CHARACTER_ACTION			eReturnAction = { CHARACTER_ACTION::IDLE };
+		CHARACTER_ACTION_STEP		eReturnStep = { CHARACTER_ACTION_STEP::NONE };
 		_float						fEnterBlendTime = { 0.f };
+		_float						fSphereRadius = { 0.f };
+		_float						fSphereDamage = { 0.f };
+		_float						fSphereForwardOffset = { 0.f };
 	} CHARACTER_ACTION_POLICY;
 
 	typedef struct tagCharacterAnimTableDesc
@@ -43,6 +50,10 @@ namespace Client
 		MONSTER_ACTION_STEP             eStep = { MONSTER_ACTION_STEP::NONE };
 		const _char*					pAnimationName = { nullptr };
 		_bool                           bRestartOnEnter = { true };
+		_bool                           bOverrideLoop = { false };
+		_bool                           bLoop = { false };
+		_bool                           bOverrideRootMotion = { false };
+		_bool                           bUseRootMotion = { false };
 	} MONSTER_ANIM_BIND_DESC;
 
 	typedef struct tagMonsterActionPolicy
@@ -58,6 +69,9 @@ namespace Client
 
 		_float                          fCooldown = { 0.f };
 		_float                          fEnterBlendTime = { 0.f };
+		_float							fSphereRadius = { 0.f };
+		_float							fSphereDamage = { 0.f };
+		_float							fSphereForwardOffset = { 0.f };
 	} MONSTER_ACTION_POLICY;
 
 	typedef struct tagMonsterAnimTableDesc
@@ -84,10 +98,14 @@ namespace Client
 		_bool bLButtonPressed = { false };
 		_bool bDashPressed = { false };
 
+		_bool bWeaponSwapPressed = { false };
+		_bool bSkillFPressed = { false };
+		_bool bSkillQPressed = { false };
+		_bool bSkillEPressed = { false };
+		_bool bShiftPressed = { false };
 
 		_long lMouseDeltaX = {};
 		_long lMouseDeltaY = {};
-
 	}PLAYER_RAW_INPUT_FRAME;
 
 	typedef struct tagPlayerIntentFrame
@@ -95,10 +113,16 @@ namespace Client
 		_float3 vMoveDirWorld = {};
 		_long	lLookDeltaX = {};
 
-		_bool bDashRequested = { false };		// ÀÌ¹ø ÇÁ·¹ÀÓ¿¡ Dash ¿äÃ»
+		_bool bDashRequested = { false };		// ï¿½Ì¹ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ó¿ï¿½ Dash ï¿½ï¿½Ã»
 		_bool bAttackRequested = { false };
+		_bool bSkillFRequested = { false };
+		_bool bSkillQRequested = { false };
+		_bool bSkillERequested = { false };
+		_bool bQTERequested = { false };
 
 		_bool bGuardHeld = { false };
+
+		_bool bWeaponSwapRequested = { false };
 
 	}PLAYER_INTENT_FRAME;
 
@@ -107,17 +131,45 @@ namespace Client
 		SPAWN_TYPE		eType = { SPAWN_TYPE::END };
 		_float3			vPosition = {};
 		_float3			vRotationDeg = {};
-		_int			iNavCellIndex = { NAVMESH_INVALID_INDEX };
+		_int			iNavCellIndex = { INVALID_INDEX };
 		_tchar			szName[MAX_PATH] = {};
 
 		_int			iLevel = { 1 };
 		_tchar			szDisplayName[MAX_PATH] = {};
 	}SPAWN_POINT;
 
+	typedef struct tagSceneLight
+	{
+		LIGHT                   eType = { LIGHT::DIRECTIONAL };
+		_tchar					szName[MAX_PATH] = {};
+
+		_float4                 vDiffuse = {};
+		_float4                 vAmbient = {};
+		_float4                 vSpecular = {};
+
+		_float4                 vDirection = {};
+		_float4                 vPosition = {};
+		_float                  fRange = {};
+	}SCENE_LIGHT;
+
+	typedef struct tagCamColliderFace
+	{
+		_int					iVertexIndices[3] = {
+			INVALID_INDEX,
+			INVALID_INDEX,
+			INVALID_INDEX
+		};
+
+		_float3					vNormal = {};
+	}CAMCOLLIDER_FACE;
+
 	typedef struct tagSceneData
 	{
 		_tchar					szNavDataPath[MAX_PATH] = { };
 		vector<SPAWN_POINT>		SpawnPoints;
+		vector<SCENE_LIGHT>     SceneLights;
+		vector<_float3>			CamColliderVertices;
+		vector<CAMCOLLIDER_FACE> CamColliderFaces;
 	}SCENE_DATA;
 
 	typedef struct tagUIElemet
@@ -167,6 +219,23 @@ namespace Client
 		WEAPON_TYPE			eCategory;
 		const _tchar*		pModelTag;
 	}WEAPON_INFO;
+
+	typedef struct tagAreaAttackDesc
+	{
+		AREA_ATTACK_SHAPE             eShape = { AREA_ATTACK_SHAPE::CIRCLE };
+
+		_float                        fInnerRadius = { 0.f };
+		_float                        fOuterRadius = { 0.f };
+		_float                        fHeight = { 3.f };
+
+		_float3                       vOffset = {};
+		_float3                       vBoxHalfExtents = {};
+
+		_float                        fDamage = { 0.f };
+		_float                        fFillDuration = { 0.f };
+
+		_bool                         bClearHitTargetsOnBegin = { true };
+	}AREA_ATTACK_DESC;
 }
 
 #endif // Client_Struct_h

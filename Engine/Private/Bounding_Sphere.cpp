@@ -8,6 +8,15 @@ CBounding_Sphere::CBounding_Sphere(ID3D11Device* pDevice, ID3D11DeviceContext* p
 {
 }
 
+void CBounding_Sphere::Set_Radius(_float fRadius)
+{
+    if (nullptr != m_pOriginalDesc)
+        m_pOriginalDesc->Radius = fRadius;
+
+    if (nullptr != m_pDesc)
+        m_pDesc->Radius = fRadius;
+}
+
 HRESULT CBounding_Sphere::Initialize(const CBounding::BOUNDING_DESC* pBoundingDesc)
 {
     auto pDesc = static_cast<const BOUNDING_SPHERE_DESC*>(pBoundingDesc);

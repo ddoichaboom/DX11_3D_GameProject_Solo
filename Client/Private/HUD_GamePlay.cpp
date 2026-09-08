@@ -7,6 +7,8 @@
 #include "Player.h"
 #include "Transform.h"
 #include "UI_Text.h"
+#include "UI_SpriteAnim.h"
+#include "AtlasInstanceEffect.h"
 
 CHUD_GamePlay* CHUD_GamePlay::s_pInstance = { nullptr };
 
@@ -100,6 +102,22 @@ void CHUD_GamePlay::Notify_CombatInput()
 	Set_PlayerBars_Visible(true);
 }
 
+void CHUD_GamePlay::Notify_ComboHit()
+{
+	++m_iComboCount;
+	m_fComboDecayTimer = COMBO_DECAY_STEP;		// 마지막 타격 이후 2초 여유  ->  이후 2초마다 1단계씩 하락
+	m_fComboHitBounce = HIT_BOUNCE_DURATION;
+}
+
+void CHUD_GamePlay::Notify_Crash()
+{
+	Ensure_CrashUIs();
+	Set_CrashVisible(true);
+	m_bCrashEffectPlaying = true;
+	m_fCrashEffectElapsed = 0.f;
+	Spawn_CrashAtlasEffect();
+}
+
 HRESULT CHUD_GamePlay::Initialize_Prototype()
 {
 	return S_OK;
@@ -126,9 +144,40 @@ void CHUD_GamePlay::Update(_float fTimeDelta)
 		Resolve_Player();
 		Cache_Viewport();
 		Cache_Dash_Offsets();
+
+		const HUD_SLOT eBoxSlots[] = {
+			HUD_SLOT::SKILL_C_KEYBOX, HUD_SLOT::SKILL_F_KEYBOX, HUD_SLOT::SKILL_Q_KEYBOX,
+			HUD_SLOT::SKILL_E_KEYBOX, HUD_SLOT::SKILL_R_KEYBOX,
+				HUD_SLOT::QTE_KEYBOX,
+		};
+		for (HUD_SLOT eBox : eBoxSlots)
+			if (CUI_Image* pBox = m_pUI[ETOUI(eBox)])
+			{
+				pBox->Set_SweepMode(UI_SWEEP_MODE::BOX);
+				pBox->Set_Color(_float4{ 0.3f, 0.3f, 0.3f, 0.5f });
+			}
+
+		if (CUI_Image* pLine = m_pUI[ETOUI(HUD_SLOT::QUEST_UNDERLINE)])
+		{
+			pLine->Set_SweepMode(UI_SWEEP_MODE::FILL);
+			pLine->Set_Color(_float4{ 1.f, 1.f, 1.f, 0.85f });
+		}
+
+		const HUD_SLOT eGaugeVSlots[] = {
+			HUD_SLOT::SKILL_C_COOL, HUD_SLOT::SKILL_F_COOL, HUD_SLOT::SKILL_Q_COOL,
+			HUD_SLOT::SKILL_E_COOL, HUD_SLOT::SKILL_R_COOL, HUD_SLOT::QTE_COOL,
+		};
+		for (HUD_SLOT eGV : eGaugeVSlots)
+			if (CUI_Image* pGV = m_pUI[ETOUI(eGV)])
+				pGV->Set_SweepMode(UI_SWEEP_MODE::GAUGE_V);
 		Set_MonsterBars_Visible(false);
 		Set_PlayerBars_Visible(false);
 		Set_PlayerDash_Visible(false);
+		if (nullptr != m_pPlayer)
+		{
+			m_eCachedWeaponId = m_pPlayer->Get_EquippedWeapon();
+			Refresh_SkillIcons(m_eCachedWeaponId);
+		}
 		m_bCached = true;
 	}
 
@@ -153,6 +202,9 @@ void CHUD_GamePlay::Update(_float fTimeDelta)
 	Tick_PlayerBars(fTimeDelta);
 	Tick_Dash(fTimeDelta);
 	Tick_Sweep(fTimeDelta);
+	Tick_Skills(fTimeDelta);
+	Tick_Combo(fTimeDelta);
+	Tick_CrashEffect(fTimeDelta);
 }
 
 void CHUD_GamePlay::Late_Update(_float fTimeDelta)
@@ -166,6 +218,7 @@ HRESULT CHUD_GamePlay::Render()
 
 void CHUD_GamePlay::Cache_UIs()
 {
+	Ensure_CrashUIs();
 	static const _tchar* Names[static_cast<_uint>(HUD_SLOT::END)] = {
 	  TEXT("HUD_MonsterHP_Back"), TEXT("HUD_MonsterHP_Reduce"), TEXT("HUD_MonsterHP_Fill"), TEXT("HUD_MonsterHP_BarLight"),
 	  TEXT("HUD_MonsterBreak_Back"), TEXT("HUD_MonsterBreak_Reduce"), TEXT("HUD_MonsterBreak_Fill"),
@@ -175,6 +228,15 @@ void CHUD_GamePlay::Cache_UIs()
 	  TEXT("HUD_Dash_Step1"), TEXT("HUD_Dash_Step1_Glow"),
 	  TEXT("HUD_Dash_Step2"), TEXT("HUD_Dash_Step2_Glow"),
 	  TEXT("HUD_Dash_Step3"), TEXT("HUD_Dash_Step3_Glow"),
+	  TEXT("HUD_Skill_C_Base"), TEXT("HUD_Skill_C_Icon"), TEXT("HUD_Skill_C_Cool"),
+	  TEXT("HUD_Skill_F_Base"), TEXT("HUD_Skill_F_Icon"), TEXT("HUD_Skill_F_Cool"),
+	  TEXT("HUD_Skill_Q_Base"), TEXT("HUD_Skill_Q_Icon"), TEXT("HUD_Skill_Q_Cool"),
+	  TEXT("HUD_Skill_E_Base"), TEXT("HUD_Skill_E_Icon"), TEXT("HUD_Skill_E_Cool"),
+	  TEXT("HUD_Skill_R_Base"), TEXT("HUD_Skill_R_Icon"), TEXT("HUD_Skill_R_Cool"),
+	  TEXT("HUD_Skill_C_KeyBox"), TEXT("HUD_Skill_F_KeyBox"), TEXT("HUD_Skill_Q_KeyBox"), TEXT("HUD_Skill_E_KeyBox"), TEXT("HUD_Skill_R_KeyBox"),
+	  TEXT("HUD_QTE_Frame"), TEXT("HUD_QTE_Icon"), TEXT("HUD_QTE_KeyBox"), TEXT("HUD_QTE_Cool"), TEXT("HUD_QTE_Active"),
+	  TEXT("HUD_Skill_C_Active"), TEXT("HUD_Skill_F_Active"), TEXT("HUD_Skill_Q_Active"), TEXT("HUD_Skill_E_Active"), TEXT("HUD_Skill_R_Active"),
+	  TEXT("HUD_Quest_Alarm"), TEXT("HUD_Quest_Underline"),
 	};
 
 	for (_uint i = 0; i < static_cast<_uint>(HUD_SLOT::END); ++i)
@@ -192,13 +254,56 @@ void CHUD_GamePlay::Cache_UIs()
 				if (nullptr == pText) continue;
 
 				const _wstring& strName = pText->Get_ObjectName();
-				if (strName == TEXT("HUD_MonsterLevel"))     m_pUI_MonsterLevel = pText;
-				else if (strName == TEXT("HUD_MonsterName")) m_pUI_MonsterName = pText;
+				if (strName == TEXT("HUD_MonsterLevel"))     
+					m_pUI_MonsterLevel = pText;
+				else if (strName == TEXT("HUD_MonsterName")) 
+						m_pUI_MonsterName = pText;
+					else if (strName == TEXT("HUD_Skill_C_Key")) 
+						m_pSkillKeyText[0] = pText;
+					else if (strName == TEXT("HUD_Skill_F_Key")) 
+						m_pSkillKeyText[1] = pText;
+					else if (strName == TEXT("HUD_Skill_Q_Key")) 
+						m_pSkillKeyText[2] = pText;
+					else if (strName == TEXT("HUD_Skill_E_Key")) 
+						m_pSkillKeyText[3] = pText;
+					else if (strName == TEXT("HUD_Skill_R_Key")) 
+						m_pSkillKeyText[4] = pText;
+					else if (strName == TEXT("HUD_QTE_Key")) 
+						m_pSkillKeyText[5] = pText;
+					else if (strName == TEXT("HUD_Quest_Title")) 
+						m_pQuestText[0] = pText;
+					else if (strName == TEXT("HUD_Quest_Objective")) 
+						m_pQuestText[1] = pText;
+					else if (strName == TEXT("HUD_Quest_Collect")) 
+						m_pQuestText[2] = pText;
+					else if (strName == TEXT("HUD_Quest_Collect")) 
+						m_pQuestText[2] = pText;
+					else if (strName == TEXT("HUD_Combo_Hits")) 
+						m_pComboHitsText = pText;
 			}
 		}
 	}
 
-
+	m_pComboRank = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Rank")));
+	m_pComboDigit[0] = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Digit0")));
+	m_pComboDigit[1] = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Digit1")));
+	m_pComboDigit[2] = dynamic_cast<CUI_SpriteAnim*>(Find_UI_ByName(TEXT("HUD_Combo_Digit2")));
+	if (nullptr != m_pComboRank)
+	{
+		m_fComboRankBaseW = m_pComboRank->Get_SizeX();
+		m_fComboRankBaseH = m_pComboRank->Get_SizeY();
+	}
+	for (_int i = 0; i < 3; ++i)
+		if (nullptr != m_pComboDigit[i])
+		{
+			m_fComboDigitBaseX[i] = m_pComboDigit[i]->Get_CenterX();
+			m_fComboDigitBaseY[i] = m_pComboDigit[i]->Get_CenterY();
+		}
+	if (nullptr != m_pComboHitsText)
+	{
+		m_fComboHitsBaseX = m_pComboHitsText->Get_CenterX();
+		m_fComboHitsBaseY = m_pComboHitsText->Get_CenterY();
+	}
 }
 
 void CHUD_GamePlay::Resolve_Player()
@@ -553,6 +658,377 @@ void CHUD_GamePlay::Tick_Dash(_float fTimeDelta)
 	(void)iChargeMax;
 }
 
+
+
+void CHUD_GamePlay::Tick_Skills(_float fTimeDelta)
+{
+	if (nullptr == m_pPlayer)
+		return;
+
+	const _bool bQTEWin = m_pPlayer->Is_QTEWindowActive();
+	const _bool bQTECool = m_pPlayer->Is_QTEOnCooldown(QTE_TYPE::EXTREME_DASH);
+	const _bool bQTEReady = bQTEWin && !bQTECool;
+
+	if (bQTEWin)
+	{
+		m_bCombatInput = true;
+		m_fSinceCombatInput = 0.f;
+		Set_PlayerBars_Visible(true);
+	}
+	if (CUI_Image* pQF = m_pUI[ETOUI(HUD_SLOT::QTE_FRAME)]) 
+		pQF->Set_Visible(bQTEWin);
+	if (CUI_Image* pQA = m_pUI[ETOUI(HUD_SLOT::QTE_ACTIVE)]) 
+		pQA->Set_Visible(bQTEReady);
+	if (CUI_Image* pQI = m_pUI[ETOUI(HUD_SLOT::QTE_ICON)]) 
+		pQI->Set_Visible(bQTEWin);
+	if (CUI_Image* pQB = m_pUI[ETOUI(HUD_SLOT::QTE_KEYBOX)]) 
+		pQB->Set_Visible(bQTEWin);
+	if (m_pSkillKeyText[5]) 
+		m_pSkillKeyText[5]->Set_Visible(bQTEReady);
+	if (CUI_Image* pQC = m_pUI[ETOUI(HUD_SLOT::QTE_COOL)])
+	{
+		if (bQTEWin && bQTECool)
+		{
+			_float fQR = m_pPlayer->Get_QTECooldownTimer(QTE_TYPE::EXTREME_DASH);
+			_float fQM = m_pPlayer->Get_QTECooldownMax(QTE_TYPE::EXTREME_DASH);
+			pQC->Set_GaugeVertical(true);
+			pQC->Set_GaugeRatio((fQM > 0.f) ? (1.f - fQR / fQM) : 1.f);
+			pQC->Set_Visible(true);
+		}
+		else
+			pQC->Set_Visible(false);
+	}
+
+	EQUIPPED_WEAPON_ID eWeapon = m_pPlayer->Get_EquippedWeapon();
+	if (eWeapon != m_eCachedWeaponId)
+	{
+		Refresh_SkillIcons(eWeapon);
+		m_eCachedWeaponId = eWeapon;
+	}
+
+	struct COOL_PAIR { HUD_SLOT eCool; HUD_SLOT eActive; _float fRemain; _float fMax; };
+	const COOL_PAIR Pairs[] = {
+		{ HUD_SLOT::SKILL_C_COOL, HUD_SLOT::SKILL_C_ACTIVE, m_pPlayer->Get_WeaponSwapCooldownTimer(),         m_pPlayer->Get_WeaponSwapCooldownMax() },
+		{ HUD_SLOT::SKILL_F_COOL, HUD_SLOT::SKILL_F_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::F), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::F) },
+		{ HUD_SLOT::SKILL_Q_COOL, HUD_SLOT::SKILL_Q_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::Q), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::Q) },
+		{ HUD_SLOT::SKILL_E_COOL, HUD_SLOT::SKILL_E_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::E), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::E) },
+		{ HUD_SLOT::SKILL_R_COOL, HUD_SLOT::SKILL_R_ACTIVE, m_pPlayer->Get_SkillCooldownTimer(SKILL_SLOT::R), m_pPlayer->Get_SkillCooldownMax(SKILL_SLOT::R) },
+	};
+
+	for (_int i = 0; i < 5; ++i)
+	{
+		const COOL_PAIR& P = Pairs[i];
+		CUI_Image* pCool = m_pUI[ETOUI(P.eCool)];
+		if (nullptr == pCool)
+			continue;
+
+		if (m_bCombatInput && P.fRemain > 0.f && P.fMax > 0.f)
+		{
+			pCool->Set_GaugeVertical(true);
+			pCool->Set_GaugeRatio(1.f - (P.fRemain / P.fMax));
+			pCool->Set_Visible(true);
+		}
+		else
+		{
+			pCool->Set_Visible(false);
+		}
+
+		if (m_fPrevSkillCooldown[i] > 0.f && P.fRemain <= 0.f)
+			m_fSkillActiveFlash[i] = SKILL_ACTIVE_FLASH;
+		if (m_fSkillActiveFlash[i] > 0.f)
+			m_fSkillActiveFlash[i] -= fTimeDelta;
+		m_fPrevSkillCooldown[i] = P.fRemain;
+
+		if (CUI_Image* pAct = m_pUI[ETOUI(P.eActive)])
+		{
+			const _bool bReady = m_bCombatInput && !(P.fRemain > 0.f && P.fMax > 0.f);
+			pAct->Set_Visible((4 == i) ? bReady : (m_bCombatInput && m_fSkillActiveFlash[i] > 0.f));
+		}
+	}
+}
+
+void CHUD_GamePlay::Refresh_SkillIcons(EQUIPPED_WEAPON_ID eWeapon)
+{
+	if (EQUIPPED_WEAPON_ID::NONE == eWeapon)
+		return;
+
+	const _uint iLevel = ETOUI(LEVEL::GAMEPLAY);
+	const _bool bKasaka = (EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == eWeapon);
+
+	auto SetIcon = [&](HUD_SLOT eSlot, const _tchar* pProto)
+	{
+		if (CUI_Image* pUI = m_pUI[ETOUI(eSlot)])
+			pUI->Set_TextureByProto(iLevel, pProto);
+	};
+
+	SetIcon(HUD_SLOT::SKILL_C_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_WpnKK"));
+	SetIcon(HUD_SLOT::SKILL_F_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_Kasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_F_KK"));
+	SetIcon(HUD_SLOT::SKILL_E_ICON, bKasaka ? TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_Kasaka") : TEXT("Prototype_Component_Texture_HUD_Skill_Icon_E_KK"));
+}
+
+void CHUD_GamePlay::Tick_Combo(_float fTimeDelta)
+{
+	// 1) 2초마다 등급 한 단계씩 하락
+	if (m_iComboCount > 0)
+	{
+		m_fComboDecayTimer -= fTimeDelta;
+		if (m_fComboDecayTimer <= 0.f)
+		{
+			const _int iCurRank = Combo_RankFromCount(m_iComboCount);
+			if (iCurRank <= 0)
+				m_iComboCount = 0;                                   // D 밑이면 종료
+			else
+				m_iComboCount = COMBO_THRESHOLD[iCurRank - 1];       // 한 단계 아래 하한으로
+			m_fComboDecayTimer = COMBO_DECAY_STEP;
+		}
+	}
+
+	// 2) 등급 산정 -> 변경 시 팝업
+	const _int iNewRank = Combo_RankFromCount(m_iComboCount);
+	if (iNewRank != m_iComboRank)
+	{
+		m_iComboRank = iNewRank;
+		if (iNewRank >= 0)
+		{
+			if (nullptr != m_pComboRank)
+				m_pComboRank->Set_Frame(static_cast<_uint>(iNewRank));
+			m_fRankPopTimer = RANK_POP_DURATION;
+		}
+	}
+
+	const _bool bShow = (m_iComboRank >= 0 && m_iComboCount > 0);
+
+	// 3) 등급 표시 + 팝 Scale (Center는 고정, 확대)
+	if (nullptr != m_pComboRank)
+	{
+		m_pComboRank->Set_Visible(bShow);
+
+		_float fScale = 1.f;
+		if (m_fRankPopTimer > 0.f)
+		{
+			m_fRankPopTimer = max(0.f, m_fRankPopTimer - fTimeDelta);
+			const _float p = 1.f - m_fRankPopTimer / RANK_POP_DURATION;   
+			if (p < 0.45f)
+				fScale = 0.2f + (RANK_POP_SCALE_MAX - 0.2f) * (p / 0.45f);
+			else
+				fScale = RANK_POP_SCALE_MAX + (1.f - RANK_POP_SCALE_MAX) * ((p - 0.45f) / 0.55f);
+		}
+		if (m_fComboRankBaseW > 0.f)
+			m_pComboRank->Set_Size(m_fComboRankBaseW * fScale, m_fComboRankBaseH * fScale);
+	}
+
+	// 4) 터격시 바운스 오프셋 ( 타격 순간 최대 -> 복귀)
+	_float fBounce = 0.f;
+	if (m_fComboHitBounce > 0.f)
+	{
+		m_fComboHitBounce = max(0.f, m_fComboHitBounce - fTimeDelta);
+		fBounce = m_fComboHitBounce / HIT_BOUNCE_DURATION;   // 1 → 0
+	}
+
+	// 5) 타격 횟수 숫자 ( 우측 정렬) - 왼쪽으로 살짝 바운스
+	_int iVal = m_iComboCount;
+	for (_int i = 0; i < 3; ++i)
+	{
+		if (nullptr == m_pComboDigit[i])
+		{
+			iVal /= 10;
+			continue;
+		}
+		const _bool bDigitOn = bShow && (i == 0 || iVal > 0);
+		m_pComboDigit[i]->Set_Visible(bDigitOn);
+		if (bDigitOn)
+		{
+			m_pComboDigit[i]->Set_Frame(static_cast<_uint>(iVal % 10));
+			m_pComboDigit[i]->Set_Center(m_fComboDigitBaseX[i] - DIGIT_BOUNCE_X * fBounce, m_fComboDigitBaseY[i]);
+		}
+		iVal /= 10;
+	}
+
+	// 6) HITS 글자 오른쪽으로 바운스
+	if (nullptr != m_pComboHitsText)
+	{
+		m_pComboHitsText->Set_Visible(bShow);
+		m_pComboHitsText->Set_Center(m_fComboHitsBaseX + HITS_BOUNCE_X * fBounce, m_fComboHitsBaseY);
+	}
+}
+void CHUD_GamePlay::Ensure_CrashUIs()
+{
+	static const _tchar* CrashNames[4] =
+	{
+		TEXT("HUD_CrashLight"),
+		TEXT("HUD_CrashWhite"),
+		TEXT("HUD_CrashFont"),
+		TEXT("HUD_CrashMask"),
+	};
+
+	static const _tchar* CrashTextureTags[4] =
+	{
+		TEXT("Prototype_Component_Texture_HUD_CrashLight"),
+		TEXT("Prototype_Component_Texture_HUD_CrashWhite"),
+		TEXT("Prototype_Component_Texture_HUD_CrashFont"),
+		TEXT("Prototype_Component_Texture_HUD_CrashMask"),
+	};
+
+	static const _float2 CrashBaseSizes[4] =
+	{
+		_float2(520.f, 309.f),
+		_float2(443.f, 96.f),
+		_float2(443.f, 96.f),
+		_float2(416.f, 66.f),
+	};
+
+	for (_uint i = 0; i < 4; ++i)
+	{
+		if (nullptr == m_pCrashUI[i])
+			m_pCrashUI[i] = Find_UI_ByName(CrashNames[i]);
+		if (nullptr != m_pCrashUI[i])
+			continue;
+
+		CUI_Image::UI_IMAGE_DESC Desc{};
+		Desc.fCenterX = m_fViewW * 0.5f;
+		Desc.fCenterY = m_fViewH * 0.43f;
+		Desc.fSizeX = CrashBaseSizes[i].x;
+		Desc.fSizeY = CrashBaseSizes[i].y;
+		Desc.iZOrder = 8500 + i;
+		Desc.pObjectName = CrashNames[i];
+		Desc.bVisible = false;
+		Desc.pTextureProtoTag = CrashTextureTags[i];
+		Desc.iTextureProtoLevel = ETOUI(LEVEL::GAMEPLAY);
+		Desc.vColor = _float4(1.f, 1.f, 1.f, 1.f);
+
+		if (FAILED(m_pGameInstance->Add_GameObject(
+			ETOUI(LEVEL::STATIC), TEXT("Prototype_GameObject_UI_Image"),
+			ETOUI(LEVEL::GAMEPLAY), TEXT("Layer_UI"), &Desc)))
+			continue;
+
+		m_pCrashUI[i] = Find_UI_ByName(CrashNames[i]);
+	}
+
+	Set_CrashVisible(false);
+}
+
+void CHUD_GamePlay::Spawn_CrashAtlasEffect()
+{
+    const _float4x4* pView = m_pGameInstance->Get_Transform(D3DTS::VIEW);
+    const _float4x4* pProj = m_pGameInstance->Get_Transform(D3DTS::PROJ);
+    if (nullptr == pView || nullptr == pProj)
+        return;
+
+    constexpr _float fEffectDistance = 4.0f;
+    _matrix ViewMatrix = XMLoadFloat4x4(pView);
+    _matrix InvViewMatrix = XMMatrixInverse(nullptr, ViewMatrix);
+    _vector vCameraPosition = InvViewMatrix.r[3];
+    _vector vCameraLook = XMVector3Normalize(InvViewMatrix.r[2]);
+
+    const _float fProjX = max(0.001f, pProj->_11);
+    const _float fProjY = max(0.001f, pProj->_22);
+    const _float fViewHeight = (2.f * fEffectDistance) / fProjY;
+    const _float fViewWidth = fViewHeight * (fProjY / fProjX);
+
+    vector<_float4> Positions;
+    _float4 vEffectPosition{};
+    XMStoreFloat4(&vEffectPosition, vCameraPosition + vCameraLook * fEffectDistance);
+    vEffectPosition.w = 1.f;
+    Positions.push_back(vEffectPosition);
+
+    CAtlasInstanceEffect::ATLAS_INSTANCE_EFFECT_DESC Desc{};
+    Desc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Crash_Atlas");
+    Desc.pPositions = &Positions;
+    Desc.iMaxInstanceCount = 1;
+    Desc.iAtlasCols = 4;
+    Desc.iAtlasRows = 4;
+    Desc.fFrameDuration = 0.035f;
+    Desc.vSize = _float2(fViewWidth * 1.15f, fViewHeight * 1.15f);
+    Desc.vUVPadding = _float2(0.001f, 0.001f);
+    Desc.vColor = _float4(1.25f, 1.25f, 1.25f, 1.f);
+    Desc.fAlpha = 0.95f;
+    Desc.iShaderPass = 1;
+    Desc.bLoop = false;
+
+    m_pGameInstance->Add_GameObject(
+        ETOUI(LEVEL::GAMEPLAY), TEXT("Prototype_GameObject_AtlasInstanceEffect"),
+        ETOUI(LEVEL::GAMEPLAY), TEXT("Layer_Effect"), &Desc);
+}
+
+void CHUD_GamePlay::Tick_CrashEffect(_float fTimeDelta)
+{
+	if (false == m_bCrashEffectPlaying)
+		return;
+
+	m_fCrashEffectElapsed += fTimeDelta;
+	const _float fT = min(1.f, m_fCrashEffectElapsed / CRASH_EFFECT_DURATION);
+
+	_float fScale = 1.f;
+	if (fT < 0.18f)
+		fScale = 1.55f + (1.08f - 1.55f) * (fT / 0.18f);
+	else if (fT < 0.32f)
+		fScale = 1.08f + (1.f - 1.08f) * ((fT - 0.18f) / 0.14f);
+
+	const _float fFade = (fT < 0.65f) ? 1.f : max(0.f, 1.f - ((fT - 0.65f) / 0.35f));
+	const _float fLightAlpha = max(0.f, 1.f - fT);
+	const _float fWhiteAlpha = (fT < 0.18f) ? (1.f - fT / 0.18f) : 0.f;
+	const _float fMaskAlpha = (fT < 0.35f) ? 0.7f : max(0.f, 0.7f * (1.f - ((fT - 0.35f) / 0.25f)));
+
+	static const _float2 CrashBaseSizes[4] =
+	{
+		_float2(520.f, 309.f),
+		_float2(443.f, 96.f),
+		_float2(443.f, 96.f),
+		_float2(416.f, 66.f),
+	};
+
+	const _float fCenterX = m_fViewW * 0.5f;
+	const _float fCenterY = m_fViewH * 0.43f;
+	const _float Alphas[4] = { fLightAlpha, fWhiteAlpha, fFade, fMaskAlpha };
+
+	for (_uint i = 0; i < 4; ++i)
+	{
+		if (nullptr == m_pCrashUI[i])
+			continue;
+
+		//const _float fLayerScale = (0 == i) ? (fScale * 1.12f) : fScale;
+
+		const _float fLayerScale = fScale;
+
+		m_pCrashUI[i]->Set_Center(fCenterX, fCenterY);
+
+		if (0 == i)
+			m_pCrashUI[i]->Set_Size(m_fViewW * 1.15f, m_fViewH * 1.15f);
+		else
+			m_pCrashUI[i]->Set_Size(CrashBaseSizes[i].x * fLayerScale, CrashBaseSizes[i].y * fLayerScale);
+
+		m_pCrashUI[i]->Set_Alpha(Alphas[i]);
+		m_pCrashUI[i]->Set_Visible(Alphas[i] > 0.01f);
+	}
+
+	if (CRASH_EFFECT_DURATION <= m_fCrashEffectElapsed)
+	{
+		m_bCrashEffectPlaying = false;
+		Set_CrashVisible(false);
+	}
+}
+
+void CHUD_GamePlay::Set_CrashVisible(_bool bVisible)
+{
+	for (_uint i = 0; i < 4; ++i)
+	{
+		if (nullptr == m_pCrashUI[i])
+			continue;
+		m_pCrashUI[i]->Set_Visible(bVisible);
+		if (false == bVisible)
+			m_pCrashUI[i]->Set_Alpha(0.f);
+	}
+}
+
+_int CHUD_GamePlay::Combo_RankFromCount(_int iCount) const
+{
+	_int iRank = -1;
+	for (_int i = 0; i < 7; ++i)
+		if (iCount >= COMBO_THRESHOLD[i])
+			iRank = i;
+	return iRank;
+}
+
 void CHUD_GamePlay::Set_MonsterBars_Visible(_bool bVisible)
 {
 	const HUD_SLOT eSlots[] = {
@@ -582,11 +1058,24 @@ void CHUD_GamePlay::Set_PlayerBars_Visible(_bool bVisible)
 		m_fSinceCombatInput = 0.f;
 	}
 
+	for (_int i = 0; i < 5; ++i)
+		if (m_pSkillKeyText[i]) m_pSkillKeyText[i]->Set_Visible(bVisible);
+
+	for (_int i = 0; i < 3; ++i)
+		if (m_pQuestText[i]) m_pQuestText[i]->Set_Visible(bVisible);
+
 	const HUD_SLOT eSlots[] = {
 				HUD_SLOT::PLAYER_HP_BACK, HUD_SLOT::PLAYER_HP_REDUCE, HUD_SLOT::PLAYER_HP_FILL,
 				HUD_SLOT::PLAYER_HP_BARLIGHT,
 				HUD_SLOT::PLAYER_MP_BACK, HUD_SLOT::PLAYER_MP_REDUCE, HUD_SLOT::PLAYER_MP_FILL,
 				HUD_SLOT::PLAYER_MP_BARLIGHT,
+				HUD_SLOT::SKILL_C_BASE, HUD_SLOT::SKILL_C_ICON,
+				HUD_SLOT::SKILL_F_BASE, HUD_SLOT::SKILL_F_ICON,
+				HUD_SLOT::SKILL_Q_BASE, HUD_SLOT::SKILL_Q_ICON,
+				HUD_SLOT::SKILL_E_BASE, HUD_SLOT::SKILL_E_ICON,
+				HUD_SLOT::SKILL_R_BASE, HUD_SLOT::SKILL_R_ICON,
+				HUD_SLOT::SKILL_C_KEYBOX, HUD_SLOT::SKILL_F_KEYBOX, HUD_SLOT::SKILL_Q_KEYBOX, HUD_SLOT::SKILL_E_KEYBOX, HUD_SLOT::SKILL_R_KEYBOX,
+				HUD_SLOT::QUEST_ALARM, HUD_SLOT::QUEST_UNDERLINE,
 	};
 
 	for (HUD_SLOT eSlot : eSlots)

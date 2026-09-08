@@ -83,3 +83,4 @@ Editor/ThirdPartyLib/
 Resources/*
 !Resources/ShaderFiles/
 .codex_tmp/
+.codex_temp/

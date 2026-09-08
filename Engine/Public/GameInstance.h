@@ -20,6 +20,14 @@ public:
 	void						Update_Engine(_float fTimeDelta);
 	HRESULT						Begin_Draw();
 	HRESULT						Draw();
+
+#ifdef _DEBUG
+public: /* Debug render toggles (collider / navmesh) */
+	void						Toggle_RenderCollider() { m_bRenderCollider = !m_bRenderCollider; }
+	void						Toggle_RenderNavMesh() { m_bRenderNavMesh = !m_bRenderNavMesh; }
+	_bool						Is_RenderCollider() const { return m_bRenderCollider; }
+	_bool						Is_RenderNavMesh() const { return m_bRenderNavMesh; }
+#endif
 	HRESULT						End_Draw();
 	void 						Clear_Resources(_int iLevelIndex);
 
@@ -70,6 +78,38 @@ public:
 	void						Add_RenderGroup(RENDERID eGroupID, class CGameObject* pGameObject);
 #pragma endregion
 
+#pragma region TARGET_MANAGER
+public:
+	HRESULT						Add_RenderTarget(const _wstring& strTargetTag,
+													_uint iWidth, _uint iHeight,
+													DXGI_FORMAT ePixelFormat,
+													const _float4& vClearColor);
+
+	HRESULT                     Add_MRT(const _wstring& strMRTTag, const _wstring& strTargetTag);
+	HRESULT                     Begin_MRT(const _wstring& strMRTTag, ID3D11DepthStencilView* pDSV = nullptr);
+	HRESULT                     End_MRT();
+	HRESULT                     Bind_RT_ShaderResource(const _wstring& strTargetTag,
+														class CShader* pShader,
+														const _char* pConstantName);
+	HRESULT						Begin_ViewportRT(_uint iWidth, _uint iHeight);
+	HRESULT						End_ViewportRT();
+	ID3D11ShaderResourceView*	Get_ViewportSRV();
+
+	HRESULT						Resize_RenderTargets(_uint iWidth, _uint iHeight);
+
+
+#ifdef _DEBUG
+	HRESULT						Ready_RT_Debug(const _wstring& strTargetTag,
+												_float fX, _float fY,
+												_float fSizeX, _float fSizeY,
+												_float fCanvasWidth, _float fCanvasHeight);
+
+	HRESULT                     Render_RT_Debug(const _wstring& strMRTTag,
+												class CShader* pShader,
+												class CVIBuffer_Rect* pVIBuffer);
+#endif
+#pragma endregion
+
 #pragma region COLLISION_MANAGER
 public:
 	void						Add_Collider(COLLISION_GROUP eGroup, class CCollider* pCollider);
@@ -87,6 +127,12 @@ public:
 													_float fViewportWidth, _float fViewportHeight,
 													_float4* pRayOrigin, _float4* pRayDir);
 	void						Set_Transform(D3DTS eState, _fmatrix StateMatrix);
+
+	void						Transform_Frustum_ToLocalSpace(_fmatrix WorldMatrix);
+	_bool                       Is_In_Frustum_WorldSpace(_fvector vWorldPos, _float fRange = 0.f) const;
+	_bool                       Is_In_Frustum_LocalSpace(_fvector vLocalPos, _float fRange = 0.f) const;
+	const _float4x4*			Get_Shadow_Transform(D3DTS eState) const;
+	HRESULT						Add_ShadowLight(const SHADOW_LIGHT_DESC& ShadowDesc);
 #pragma endregion
 
 #pragma region INPUT_DEVICE
@@ -111,6 +157,18 @@ public:
 #pragma region LIGHT_MANAGER
 	const LIGHT_DESC*			Get_LightDesc(_uint iIndex);
 	HRESULT						Add_Light(const LIGHT_DESC& LightDesc);
+	HRESULT                     Render_Light(class CShader* pShader, class CVIBuffer_Rect* pVIBuffer);
+	_uint						Get_NumLights() const;
+#pragma endregion
+
+#pragma region SOUND_MANAGER
+	HRESULT                     Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume = 1.f, _bool bLoop = false);
+	HRESULT                     Play_SoundSequence(const _wstring* pSoundKeys, _uint iNumSounds, SOUND_CHANNEL eChannel, _float fVolume = 1.f);
+	HRESULT                     Play_BGM(const _wstring& strSoundKey, _float fVolume = 1.f, _bool bLoop = true);
+	void                        Stop_Sound(SOUND_CHANNEL eChannel);
+	void                        Stop_AllSounds();
+	void                        Set_SoundVolume(SOUND_CHANNEL eChannel, _float fVolume);
+	_bool                       Is_SoundPlaying(SOUND_CHANNEL eChannel) const;
 #pragma endregion
 
 #pragma region Font_MANAGER
@@ -136,9 +194,17 @@ private:
 	class CLight_Manager*		m_pLight_Manager = { nullptr };
 	class CFont_Manager*		m_pFont_Manager = { nullptr };
 	class CCollision_Manager*	m_pCollision_Manager = { nullptr };
+	class CFrustum*				m_pFrustum = { nullptr };
+	class CTarget_Manager*		m_pTarget_Manager = { nullptr };
+	class CSound_Manager*		m_pSound_Manager = { nullptr };
+	class CShadow*				m_pShadow = { nullptr };
 
 private:
 	_bool						m_bLogicFrozen = { false };
+#ifdef _DEBUG
+	_bool						m_bRenderCollider = { false };
+	_bool						m_bRenderNavMesh = { false };
+#endif
 	HWND						m_hWnd;
 	_uint						m_iWinSizeX;
 	_uint						m_iWinSizeY;

@@ -76,12 +76,29 @@ HRESULT CCamera::Render()
 
 void CCamera::Update_PipeLine()
 {
+	if (false == m_bActiveCamera)
+		return;
+
 	// View = Inverse(Camera WorldMatrix)
 	m_pGameInstance->Set_Transform(D3DTS::VIEW,
 		XMMatrixInverse(nullptr, XMLoadFloat4x4(m_pTransformCom->Get_WorldMatrixPtr())));
 
 	m_pGameInstance->Set_Transform(D3DTS::PROJ,
 		XMLoadFloat4x4(&m_ProjMatrix));
+}
+
+void CCamera::Resize_Projection(_uint iWidth, _uint iHeight)
+{
+	if (0 == iWidth || 0 == iHeight)
+		return;
+
+	m_fAspect = static_cast<_float>(iWidth) / static_cast<_float>(iHeight);
+
+	XMStoreFloat4x4(
+		&m_ProjMatrix,
+		XMMatrixPerspectiveFovLH(m_fFovy, m_fAspect, m_fNear, m_fFar));
+
+	Update_PipeLine();
 }
 
 void CCamera::Free()

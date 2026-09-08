@@ -38,6 +38,8 @@ public:
 	EDITOR_TOOL_MODE		Get_Tool_Mode() const { return m_eToolMode; }
 	_bool					Is_NavMeshEditMode() const { return EDITOR_TOOL_MODE::NAVMESH == m_eToolMode; }
 	_bool					Is_UICanvasMode() const { return EDITOR_TOOL_MODE::UI_CANVAS == m_eToolMode; }
+	_bool					Is_LightEditMode() const { return EDITOR_TOOL_MODE::LIGHT == m_eToolMode; }
+	_bool					Is_CamColliderMode() const { return EDITOR_TOOL_MODE::CAM_COLLIDER == m_eToolMode; }
 
 	void					Set_ToolMode(EDITOR_TOOL_MODE eMode);
 

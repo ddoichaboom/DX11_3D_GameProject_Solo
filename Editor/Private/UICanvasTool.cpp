@@ -339,8 +339,14 @@ void CUICanvasTool::Render_TextPreview_ToRT(_uint iRTWidth, _uint iRTHeight)
         // X/Y 다른 비율이면 평균 또는 최소값 사용 — 일반적으로 같으니 평균
         const _float2 vRenderScale(fFinalScale * fScaleX, fFinalScale * fScaleY);
 
+        _float4 vPremul{};
+        vPremul.x = E.vColor.x * E.vColor.w;
+        vPremul.y = E.vColor.y * E.vColor.w;
+        vPremul.z = E.vColor.z * E.vColor.w;
+        vPremul.w = E.vColor.w;
+
         pInstance->Render_Font(E.szFontTag, E.szText, vPos,
-            XMVectorSet(1.f, 1.f, 1.f, 1.f),
+            XMLoadFloat4(&vPremul),
             0.f,
             _float2(0.f, 0.f),
             vRenderScale);
@@ -381,6 +387,16 @@ void CUICanvasTool::Init_Default(UI_ELEMENT* pElement, UI_ELEMENT_TYPE eType)
     pElement->fSizeX = 200.f;
     pElement->fSizeY = 200.f;
     pElement->iZOrder = static_cast<_uint>(m_SceneData.Elements.size());
+    pElement->bVisible = true;
+    pElement->vColor = _float4{ 1.f, 1.f, 1.f, 1.f };
+    pElement->iAtlasCols = 1;
+    pElement->iAtlasRows = 1;
+    pElement->fFrameDuration = 0.1f;
+    pElement->bLoop = true;
+    pElement->fPlaybackSpeed = 1.f;
+    pElement->eHAlign = UI_TEXT_HALIGN::CENTER;
+    pElement->eVAlign = UI_TEXT_VALIGN::MIDDLE;
+    pElement->eSweepMode = UI_SWEEP_MODE::NONE;
 
     _tchar szName[MAX_PATH] = {};
     const _tchar* pPrefix = TEXT("Element");

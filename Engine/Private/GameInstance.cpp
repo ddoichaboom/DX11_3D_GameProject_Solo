@@ -9,6 +9,10 @@
 #include "Light_Manager.h"
 #include "Font_Manager.h"
 #include "Collision_Manager.h"
+#include "Frustum.h"
+#include "Target_Manager.h"
+#include "Sound_Manager.h"
+#include "Shadow.h"
 
 IMPLEMENT_SINGLETON(CGameInstance)
 
@@ -46,12 +50,20 @@ HRESULT CGameInstance::Initialize_Engine(const ENGINE_DESC& EngineDesc, ID3D11De
 	if (nullptr == m_pObject_Manager)
 		return E_FAIL;
 
+	m_pTarget_Manager = CTarget_Manager::Create(*ppDevice, *ppContext);
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
 	m_pRenderer = CRenderer::Create(*ppDevice, *ppContext);
 	if (nullptr == m_pRenderer)
 		return E_FAIL;
 
 	m_pPipeLine = CPipeLine::Create();
 	if (nullptr == m_pPipeLine)
+		return E_FAIL;
+
+	m_pShadow = CShadow::Create();
+	if (nullptr == m_pShadow)
 		return E_FAIL;
 
 	m_pInput_Device = CInput_Device::Create(EngineDesc.hWnd);
@@ -70,19 +82,32 @@ HRESULT CGameInstance::Initialize_Engine(const ENGINE_DESC& EngineDesc, ID3D11De
 	if (nullptr == m_pCollision_Manager)
 		return E_FAIL;
 
+	m_pFrustum = CFrustum::Create();
+	if (nullptr == m_pFrustum)
+		return E_FAIL;
+
+	m_pSound_Manager = CSound_Manager::Create(TEXT("../../Resources/Audio"));
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
 	return S_OK;
 }
 
 void CGameInstance::Update_Engine(_float fTimeDelta)
 {
-	m_pInput_Device->Update();							// (1) 누적 Raw Input -> 프레임 데이터 복사
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Update();
 
+	m_pInput_Device->Update();							// (1) Raw Input -> frame input copy
 	m_pObject_Manager->Priority_Update(fTimeDelta);		// (2) 카메라 이동 처리
 	m_pObject_Manager->Update(fTimeDelta);				// (3) 카메라 -> PipeLine 세팅
 
 	m_pPipeLine->Update();								// (4) 역행렬 계산, 카메라 위치 추출
 
-	m_pObject_Manager->Late_Update(fTimeDelta);			// (5) 렌더 등록
+	m_pFrustum->Update(m_pPipeLine->Get_Transform_Inverse(D3DTS::VIEW),
+						m_pPipeLine->Get_Transform_Inverse(D3DTS::PROJ));		// (5) 절두체 갱신 
+
+	m_pObject_Manager->Late_Update(fTimeDelta);			// (6) 렌더 등록
 
 	m_pCollision_Manager->Update();
 
@@ -92,7 +117,7 @@ void CGameInstance::Update_Engine(_float fTimeDelta)
 HRESULT CGameInstance::Begin_Draw()
 {
 	// 색상 : 파란색 설정
-	_float4     vColor = _float4(0.f, 0.f, 1.f, 1.f);
+	_float4     vColor = _float4(0.2f, 0.2f, 0.2f, 1.f);
 
 	if (FAILED(m_pGraphic_Device->Clear_BackBuffer_View(&vColor)))
 		return E_FAIL;
@@ -108,8 +133,13 @@ HRESULT CGameInstance::Draw()
 	if (FAILED(m_pRenderer->Draw()))
 		return E_FAIL;
 
-	if (FAILED(m_pCollision_Manager->Render()))
-		return E_FAIL;
+#ifdef _DEBUG
+	if (m_bRenderCollider)
+#endif
+	{
+		if (FAILED(m_pCollision_Manager->Render()))
+			return E_FAIL;
+	}
 
 	if (FAILED(m_pLevel_Manager->Render()))
 		return E_FAIL;
@@ -249,6 +279,98 @@ void CGameInstance::Add_RenderGroup(RENDERID eGroupID, class CGameObject* pGameO
 }
 #pragma endregion
 
+#pragma region TARGET_MANAGER
+
+HRESULT CGameInstance::Add_RenderTarget(const _wstring& strTargetTag,
+	_uint iWidth, _uint iHeight, DXGI_FORMAT ePixelFormat, const _float4& vClearColor)
+{
+	return m_pTarget_Manager->Add_RenderTarget(strTargetTag, iWidth, iHeight, ePixelFormat, vClearColor);
+}
+
+HRESULT CGameInstance::Add_MRT(const _wstring& strMRTTag, const _wstring& strTargetTag)
+{
+	return m_pTarget_Manager->Add_MRT(strMRTTag, strTargetTag);
+}
+
+HRESULT CGameInstance::Begin_MRT(const _wstring& strMRTTag, ID3D11DepthStencilView* pDSV)
+{
+	return m_pTarget_Manager->Begin_MRT(strMRTTag, pDSV);
+}
+
+HRESULT CGameInstance::End_MRT()
+{
+	return m_pTarget_Manager->End_MRT();
+}
+
+HRESULT CGameInstance::Bind_RT_ShaderResource(const _wstring& strTargetTag, CShader* pShader, const _char* pConstantName)
+{
+	return m_pTarget_Manager->Bind_ShaderResource(strTargetTag, pShader, pConstantName);
+}
+
+HRESULT CGameInstance::Begin_ViewportRT(_uint iWidth, _uint iHeight)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->Begin_ViewportRT(iWidth, iHeight);
+}
+
+HRESULT CGameInstance::End_ViewportRT()
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->End_ViewportRT();
+}
+
+ID3D11ShaderResourceView* CGameInstance::Get_ViewportSRV()
+{
+	if (nullptr == m_pTarget_Manager)
+		return nullptr;
+
+	return m_pTarget_Manager->Get_RenderTargetSRV(TEXT("Target_Viewport"));
+}
+
+HRESULT CGameInstance::Resize_RenderTargets(_uint iWidth, _uint iHeight)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	if (FAILED(m_pTarget_Manager->Resize_RenderTargets(iWidth, iHeight)))
+		return E_FAIL;
+
+	if (nullptr != m_pRenderer)
+	{
+		if (FAILED(m_pRenderer->Resize(iWidth, iHeight)))
+			return E_FAIL;
+
+#ifdef _DEBUG
+		if (FAILED(m_pRenderer->Resize_DebugRenderTargets(iWidth, iHeight)))
+			return E_FAIL;
+#endif 
+	}
+
+	return S_OK;
+}
+
+#ifdef _DEBUG
+HRESULT CGameInstance::Ready_RT_Debug(const _wstring& strTargetTag,	_float fX, _float fY, _float fSizeX, _float fSizeY,	_float fCanvasWidth, _float fCanvasHeight)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->Ready_Debug(strTargetTag, fX, fY, fSizeX, fSizeY, fCanvasWidth, fCanvasHeight);
+}
+HRESULT CGameInstance::Render_RT_Debug(const _wstring& strMRTTag, CShader* pShader, CVIBuffer_Rect* pVIBuffer)
+{
+	if (nullptr == m_pTarget_Manager)
+		return E_FAIL;
+
+	return m_pTarget_Manager->Render_Debug(strMRTTag, pShader, pVIBuffer);
+}
+#endif
+#pragma endregion
+
 #pragma region COLLISION_MANAGER
 void CGameInstance::Add_Collider(COLLISION_GROUP eGroup, CCollider* pCollider)
 {
@@ -296,6 +418,47 @@ void			CGameInstance::Set_Transform(D3DTS eState, _fmatrix StateMatrix)
 {
 	m_pPipeLine->Set_Transform(eState, StateMatrix);
 }
+
+void CGameInstance::Transform_Frustum_ToLocalSpace(_fmatrix WorldMatrix)
+{
+	if (nullptr == m_pFrustum)
+		return;
+
+	m_pFrustum->Transform_ToLocalSpace(WorldMatrix);
+}
+
+_bool CGameInstance::Is_In_Frustum_WorldSpace(_fvector vWorldPos, _float fRange) const
+{
+	if (nullptr == m_pFrustum)
+		return true;
+
+	return m_pFrustum->Is_InWorldSpace(vWorldPos, fRange);
+}
+
+_bool CGameInstance::Is_In_Frustum_LocalSpace(_fvector vLocalPos, _float fRange) const
+{
+	if (nullptr == m_pFrustum)
+		return true;
+
+	return m_pFrustum->Is_InLocalSpace(vLocalPos, fRange);
+}
+
+const _float4x4* CGameInstance::Get_Shadow_Transform(D3DTS eState) const
+{
+	if (nullptr == m_pShadow)
+		return nullptr;
+
+	return m_pShadow->Get_Transform(eState);
+}
+
+HRESULT CGameInstance::Add_ShadowLight(const SHADOW_LIGHT_DESC& ShadowDesc)
+{
+	if (nullptr == m_pShadow)
+		return E_FAIL;
+
+	return m_pShadow->Add_ShadowLight(ShadowDesc);
+}
+
 
 #pragma endregion
 
@@ -359,6 +522,7 @@ _bool		CGameInstance::Is_CursorLocked() const
 #pragma endregion
 
 #pragma region LIGHT_MANAGER
+
 const LIGHT_DESC* CGameInstance::Get_LightDesc(_uint iIndex)
 {
 	return m_pLight_Manager->Get_LightDesc(iIndex);
@@ -367,6 +531,73 @@ const LIGHT_DESC* CGameInstance::Get_LightDesc(_uint iIndex)
 HRESULT	CGameInstance::Add_Light(const LIGHT_DESC& LightDesc)
 {
 	return m_pLight_Manager->Add_Light(LightDesc);
+}
+
+HRESULT CGameInstance::Render_Light(CShader* pShader, CVIBuffer_Rect* pVIBuffer)
+{
+	return m_pLight_Manager->Render(pShader, pVIBuffer);
+}
+
+_uint CGameInstance::Get_NumLights() const
+{
+	if (nullptr == m_pLight_Manager)
+		return 0;
+
+	return m_pLight_Manager->Get_NumLights();
+}
+
+#pragma endregion
+
+#pragma region SOUND_MANAGER
+
+HRESULT CGameInstance::Play_Sound(const _wstring& strSoundKey, SOUND_CHANNEL eChannel, _float fVolume, _bool bLoop)
+{
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
+	return m_pSound_Manager->Play_Sound(strSoundKey, eChannel, fVolume, bLoop);
+}
+
+HRESULT CGameInstance::Play_SoundSequence(const _wstring* pSoundKeys, _uint iNumSounds, SOUND_CHANNEL eChannel, _float fVolume)
+{
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
+	return m_pSound_Manager->Play_SoundSequence(pSoundKeys, iNumSounds, eChannel, fVolume);
+}
+
+HRESULT CGameInstance::Play_BGM(const _wstring& strSoundKey, _float fVolume, _bool bLoop)
+{
+	if (nullptr == m_pSound_Manager)
+		return E_FAIL;
+
+	return m_pSound_Manager->Play_BGM(strSoundKey, fVolume, bLoop);
+}
+
+void CGameInstance::Stop_Sound(SOUND_CHANNEL eChannel)
+{
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Stop_Sound(eChannel);
+}
+
+void CGameInstance::Stop_AllSounds()
+{
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Stop_All();
+}
+
+void CGameInstance::Set_SoundVolume(SOUND_CHANNEL eChannel, _float fVolume)
+{
+	if (nullptr != m_pSound_Manager)
+		m_pSound_Manager->Set_ChannelVolume(eChannel, fVolume);
+}
+
+_bool CGameInstance::Is_SoundPlaying(SOUND_CHANNEL eChannel) const
+{
+	if (nullptr == m_pSound_Manager)
+		return false;
+
+	return m_pSound_Manager->Is_Playing(eChannel);
 }
 
 #pragma endregion
@@ -399,12 +630,16 @@ HRESULT CGameInstance::Measure_Font(const _wstring& strFontTag, const _tchar* pT
 
 void CGameInstance::Release_Engine()
 {
+	Safe_Release(m_pSound_Manager);
+	Safe_Release(m_pShadow);
 	Safe_Release(m_pCollision_Manager);
 	Safe_Release(m_pFont_Manager);
 	Safe_Release(m_pLight_Manager);
 	Safe_Release(m_pInput_Device);
+	Safe_Release(m_pFrustum);
 	Safe_Release(m_pPipeLine);
 	Safe_Release(m_pRenderer);
+	Safe_Release(m_pTarget_Manager);
 	Safe_Release(m_pObject_Manager);
 	Safe_Release(m_pPrototype_Manager);
 	Safe_Release(m_pLevel_Manager);

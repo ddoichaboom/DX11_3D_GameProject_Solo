@@ -154,8 +154,29 @@
     <Filter Include="03. UI\HUD\GamePlay">
       <UniqueIdentifier>{fb76d956-770e-4b5e-81e4-71ed8404cd03}</UniqueIdentifier>
     </Filter>
+    <Filter Include="02. GameObject\Effect">
+      <UniqueIdentifier>{917cc713-89b8-4ad0-a1b4-2a267d22f5d1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObject\Camera\Cinematic">
+      <UniqueIdentifier>{0ec52222-f14a-42b3-98e8-cff9500c15f2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="03. UI\DamageFont">
+      <UniqueIdentifier>{0daadf41-e8cf-4ef5-80ae-8748d31bab90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObject\Effect\Trail">
+      <UniqueIdentifier>{f5598055-a131-4d52-a281-9265e7bd51bc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Public\AreaAttackTelegraph.h">
+      <Filter>02. GameObject\Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\BossSlashProjectile.h">
+      <Filter>02. GameObject\Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\AtlasInstanceEffect.h">
+      <Filter>02. GameObject\Effect</Filter>
+    </ClInclude>
     <ClInclude Include="..\Public\MainApp.h">
       <Filter>00. MainApp</Filter>
     </ClInclude>
@@ -276,8 +297,26 @@
     <ClInclude Include="..\Public\HUD_GamePlay.h">
       <Filter>03. UI\HUD\GamePlay</Filter>
     </ClInclude>
+    <ClInclude Include="..\Public\Camera_Cinematic.h">
+      <Filter>02. GameObject\Camera\Cinematic</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\DamageFont.h">
+      <Filter>03. UI\DamageFont</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\WeaponTrailEffect.h">
+      <Filter>02. GameObject\Effect\Trail</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Private\AreaAttackTelegraph.cpp">
+      <Filter>02. GameObject\Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\BossSlashProjectile.cpp">
+      <Filter>02. GameObject\Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\AtlasInstanceEffect.cpp">
+      <Filter>02. GameObject\Effect</Filter>
+    </ClCompile>
     <ClCompile Include="..\Private\BackGround.cpp">
       <Filter>02. GameObject\BackGround</Filter>
     </ClCompile>
@@ -386,6 +425,15 @@
     <ClCompile Include="..\Private\HUD_GamePlay.cpp">
       <Filter>03. UI\HUD\GamePlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\Private\Camera_Cinematic.cpp">
+      <Filter>02. GameObject\Camera\Cinematic</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\DamageFont.cpp">
+      <Filter>03. UI\DamageFont</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\WeaponTrailEffect.cpp">
+      <Filter>02. GameObject\Effect\Trail</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\..\Resources\ShaderFiles\Shader_VtxTex.hlsl">
@@ -401,6 +449,12 @@
       <Filter>98. ShaderFiles</Filter>
     </FxCompile>
     <FxCompile Include="..\..\Resources\ShaderFiles\Shader_VtxPosColor.hlsl">
+      <Filter>98. ShaderFiles</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Resources\ShaderFiles\Shader_VtxRectInstance.hlsl">
+      <Filter>98. ShaderFiles</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Resources\ShaderFiles\Shader_Deferred.hlsl">
       <Filter>98. ShaderFiles</Filter>
     </FxCompile>
   </ItemGroup>

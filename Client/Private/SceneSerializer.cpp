@@ -6,7 +6,7 @@ namespace
 {
     static constexpr char SCENEDATA_MAGIC[4] = { 'S', 'L', 'S', 'C' };
     static constexpr _uint SCENEDATA_VERSION_MIN = { 1 };
-    static constexpr _uint SCENEDATA_VERSION_LATEST = { 2 };
+    static constexpr _uint SCENEDATA_VERSION_LATEST = { 5 };
 
     HRESULT Write_SpawnPoint(CBinaryWriter& Writer, const SPAWN_POINT& Point)
     {
@@ -77,6 +77,109 @@ namespace
 
         return S_OK;
     }
+
+    HRESULT Write_SceneLight(CBinaryWriter& Writer, const SCENE_LIGHT& Light)
+    {
+        const _uint iType = static_cast<_uint>(Light.eType);
+
+        if (FAILED(Writer.Write(iType)))
+            return E_FAIL;
+
+        if (FAILED(Writer.WriteArray(Light.szName, sizeof(_tchar), MAX_PATH)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Light.vDiffuse)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Light.vAmbient)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Light.vSpecular)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Light.vDirection)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Light.vPosition)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Light.fRange)))
+            return E_FAIL;
+
+        return S_OK;
+    }
+
+    HRESULT Read_SceneLight(CBinaryReader& Reader, SCENE_LIGHT* pOutLight, _uint iVersion)
+    {
+        if (nullptr == pOutLight)
+            return E_FAIL;
+
+        _uint iType = {};
+
+        if (FAILED(Reader.Read(&iType)))
+            return E_FAIL;
+
+        if (iType >= static_cast<_uint>(LIGHT::END))
+            return E_FAIL;
+
+        if (iVersion >= 4)
+        {
+            if (FAILED(Reader.ReadArray(pOutLight->szName, sizeof(_tchar), MAX_PATH)))
+                return E_FAIL;
+        }
+        else
+        {
+            pOutLight->szName[0] = 0;
+        }
+
+        if (FAILED(Reader.Read(&pOutLight->vDiffuse)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutLight->vAmbient)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutLight->vSpecular)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutLight->vDirection)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutLight->vPosition)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutLight->fRange)))
+            return E_FAIL;
+
+        pOutLight->eType = static_cast<LIGHT>(iType);
+        pOutLight->szName[MAX_PATH - 1] = 0;
+
+        return S_OK;
+    }
+
+    HRESULT Write_CamColliderFace(CBinaryWriter& Writer, const CAMCOLLIDER_FACE& Face)
+    {
+        if (FAILED(Writer.WriteArray(Face.iVertexIndices, sizeof(_int), 3)))
+            return E_FAIL;
+
+        if (FAILED(Writer.Write(Face.vNormal)))
+            return E_FAIL;
+
+        return S_OK;
+    }
+
+    HRESULT Read_CamColliderFace(CBinaryReader& Reader, CAMCOLLIDER_FACE* pOutFace)
+    {
+        if (nullptr == pOutFace)
+            return E_FAIL;
+
+        if (FAILED(Reader.ReadArray(pOutFace->iVertexIndices, sizeof(_int), 3)))
+            return E_FAIL;
+
+        if (FAILED(Reader.Read(&pOutFace->vNormal)))
+            return E_FAIL;
+
+        return S_OK;
+    }
 }
 
 HRESULT CSceneSerializer::Save(const _tchar* pSceneDataPath, const SCENE_DATA& SceneData)
@@ -91,6 +194,9 @@ HRESULT CSceneSerializer::Save(const _tchar* pSceneDataPath, const SCENE_DATA& S
 
     const _uint iVersion = SCENEDATA_VERSION_LATEST;
     const _uint iNumSpawnPoints = static_cast<_uint>(SceneData.SpawnPoints.size());
+    const _uint iNumSceneLights = static_cast<_uint>(SceneData.SceneLights.size());
+    const _uint iNumCamColliderVertices = static_cast<_uint>(SceneData.CamColliderVertices.size());
+    const _uint iNumCamColliderFaces = static_cast<_uint>(SceneData.CamColliderFaces.size());
 
     if (FAILED(Writer.WriteMagic(SCENEDATA_MAGIC, 4)))
         return E_FAIL;
@@ -110,6 +216,33 @@ HRESULT CSceneSerializer::Save(const _tchar* pSceneDataPath, const SCENE_DATA& S
             return E_FAIL;
     }
 
+    if (FAILED(Writer.Write(iNumSceneLights)))
+        return E_FAIL;
+
+    for (const SCENE_LIGHT& Light : SceneData.SceneLights)
+    {
+        if (FAILED(Write_SceneLight(Writer, Light)))
+            return E_FAIL;
+    }
+
+    if (FAILED(Writer.Write(iNumCamColliderVertices)))
+        return E_FAIL;
+
+    for (const _float3& vPosition : SceneData.CamColliderVertices)
+    {
+        if (FAILED(Writer.Write(vPosition)))
+            return E_FAIL;
+    }
+
+    if (FAILED(Writer.Write(iNumCamColliderFaces)))
+        return E_FAIL;
+
+    for (const CAMCOLLIDER_FACE& Face : SceneData.CamColliderFaces)
+    {
+        if (FAILED(Write_CamColliderFace(Writer, Face)))
+            return E_FAIL;
+    }
+
     return S_OK;
 }
 
@@ -125,6 +258,9 @@ HRESULT CSceneSerializer::Load(const _tchar* pSceneDataPath, SCENE_DATA* pOutSce
 
     _uint iVersion = {};
     _uint iNumSpawnPoints = {};
+    _uint iNumSceneLights = {};
+    _uint iNumCamColliderVertices = {};
+    _uint iNumCamColliderFaces = {};
 
     if (FAILED(Reader.ReadMagic(SCENEDATA_MAGIC, 4)))
         return E_FAIL;
@@ -149,6 +285,50 @@ HRESULT CSceneSerializer::Load(const _tchar* pSceneDataPath, SCENE_DATA* pOutSce
     {
         if (FAILED(Read_SpawnPoint(Reader, &Point, iVersion)))
             return E_FAIL;
+    }
+
+    SceneData.SceneLights.clear();
+
+    if (iVersion >= 3)
+    {
+        if (FAILED(Reader.Read(&iNumSceneLights)))
+            return E_FAIL;
+
+        SceneData.SceneLights.resize(iNumSceneLights);
+
+        for (SCENE_LIGHT& Light : SceneData.SceneLights)
+        {
+            if (FAILED(Read_SceneLight(Reader, &Light, iVersion)))
+                return E_FAIL;
+        }
+    }
+
+    SceneData.CamColliderVertices.clear();
+    SceneData.CamColliderFaces.clear();
+
+    if (iVersion >= 5)
+    {
+        if (FAILED(Reader.Read(&iNumCamColliderVertices)))
+            return E_FAIL;
+
+        SceneData.CamColliderVertices.resize(iNumCamColliderVertices);
+
+        for (_float3& vPosition : SceneData.CamColliderVertices)
+        {
+            if (FAILED(Reader.Read(&vPosition)))
+                return E_FAIL;
+        }
+
+        if (FAILED(Reader.Read(&iNumCamColliderFaces)))
+            return E_FAIL;
+
+        SceneData.CamColliderFaces.resize(iNumCamColliderFaces);
+
+        for (CAMCOLLIDER_FACE& Face : SceneData.CamColliderFaces)
+        {
+            if (FAILED(Read_CamColliderFace(Reader, &Face)))
+                return E_FAIL;
+        }
     }
 
     *pOutSceneData = SceneData;

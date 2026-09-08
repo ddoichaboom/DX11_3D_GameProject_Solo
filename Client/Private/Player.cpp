@@ -1,4 +1,4 @@
-#include "Player.h"
+Ôªø#include "Player.h"
 #include "GameInstance.h"
 #include "Body_Player.h"
 #include "Weapon.h"
@@ -10,15 +10,18 @@
 #include "Monster.h"
 #include "Collider.h"
 #include "Layer.h"
+#include <cstdlib>
 #include "Cell.h"
 #include "HUD_GamePlay.h"
+#include "DamageFont.h"
+#include "WeaponTrailEffect.h"
 
 namespace
 {
-	static constexpr _float PLAYER_BODY_BLOCK_RADIUS = { 0.35f };
+	static constexpr _float PLAYER_BODY_BLOCK_RADIUS = { 0.40f };
 	static constexpr _float MONSTER_NORMAL_BODY_BLOCK_RADIUS = { 0.45f };
 	static constexpr _float MONSTER_ELITE_BODY_BLOCK_RADIUS = { 0.55f };
-	static constexpr _float MONSTER_BOSS_BODY_BLOCK_RADIUS = { 0.75f };
+	static constexpr _float MONSTER_BOSS_BODY_BLOCK_RADIUS = { 0.80f };
 	static constexpr _float BODY_BLOCK_SKIN = { 0.05f };
 	static constexpr _float BODY_BLOCK_MIN_MOVE_SQ = { 0.000001f };
 
@@ -28,7 +31,7 @@ namespace
 		{EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG, WEAPON_TYPE::DAGGER, TEXT("Prototype_Component_Model_Weapon_KasakaVenomFang") },
 	};
 
-	// æÁº’ ¥‹∞À µ∆˙∆Æ «Æ - DEFAULT/DAGGER ¿Â¬¯ Ω√ ∫∏¡∂ º’ø° ªÁøÎ
+	// ÏñëÏÜê Îã®Í≤Ä ÎîîÌè¥Ìä∏ ÌíÄ - DEFAULT/DAGGER Ïû•Ï∞© Ïãú Î≥¥Ï°∞ ÏÜêÏóê ÏÇ¨Ïö©
 	static const _tchar* DAGGER_POOL[] = {
 		TEXT("Prototype_Component_Model_Weapon_KnightKiller"),
 		TEXT("Prototype_Component_Model_Weapon_KasakaVenomFang"),
@@ -45,12 +48,62 @@ CPlayer::CPlayer(const CPlayer& Prototype)
 {
 }
 
-void CPlayer::Take_Damage(_float fAmount)
+void CPlayer::Take_Damage(_float fAmount, CMonster* pAttacker)
 {
+	if (true == m_bInvincible)
+	{
+		On_DodgeSucceeded(pAttacker);
+		return;
+	}
+
+	if (true == m_bParryWindow)
+	{
+		On_DamageBlocked(pAttacker);
+		return;
+	}
+
 	if (m_fCurrentHP <= 0.f)
 		return;
 
+	auto frand01 = []() { return static_cast<_float>(rand()) / static_cast<_float>(RAND_MAX); };
+	const _bool bCrit = (frand01() < 0.25f);
+	fAmount *= (0.8f + frand01() * 0.4f);
+	if (bCrit)
+		fAmount *= 2.f;
+
 	m_fCurrentHP = max(0.f, m_fCurrentHP - fAmount);
+
+	if (CDamageFont* pDF = CDamageFont::Get_Instance())
+	{
+		_float3 vCenter;
+		XMStoreFloat3(&vCenter, m_pTransformCom->Get_State(STATE::POSITION));
+		vCenter.y += 1.5f;
+		pDF->Spawn(vCenter, static_cast<_int>(fAmount + 0.5f), bCrit);
+	}
+
+	// ÏùºÎ∞ò ÌîºÍ≤© Í≤ΩÏßÅ ÏßÑÏûÖ ‚Äî DAMAGE Îã®Ïùº Ïï°ÏÖò + STEPÏ∂ï Í∞ïÎèÑ 4Îã®Í≥Ñ (Float/Down ÎØ∏ÏÇ¨Ïö©)
+	// priority 6 Ïù¥Îùº Í≥µÍ≤©(3)/Í∞ÄÎìú(4)/Ïä§ÌÇ¨(5) ÏßÑÌñâ Ï§ëÏù¥Î©¥ Ï∫îÏä¨ÎêòÍ≥† Í≤ΩÏßÅÏúºÎ°ú Ï†ÑÌôò,
+	// FLOAT(7)/QTE(8) Ï§ëÏù¥Í±∞ÎÇò ÌöåÌîº(Î¨¥Ï†Å) Ï§ëÏóêÎäî ÏßÑÏûÖÌïòÏßÄ ÏïäÏùå
+	if (m_fCurrentHP > 0.f && nullptr != m_pStateMachine)
+	{
+		constexpr _float fThresholdA = 150.f;   // UpperOnly ‚Üí A Í≤ΩÍ≥Ñ
+		constexpr _float fThresholdB = 300.f;   // A ‚Üí B Í≤ΩÍ≥Ñ
+		constexpr _float fThresholdC = 550.f;   // B ‚Üí C Í≤ΩÍ≥Ñ
+
+		CHARACTER_ACTION_STEP eStep;
+		if (fAmount < fThresholdA)
+			eStep = CHARACTER_ACTION_STEP::NONE;    // Damage_UpperOnly
+		else if (fAmount < fThresholdB)
+			eStep = CHARACTER_ACTION_STEP::START;   // Damage_A
+		else if (fAmount < fThresholdC)
+			eStep = (0 == rand() % 2)               // Damage_B Ï¢åÏö∞ ÎûúÎç§
+				? CHARACTER_ACTION_STEP::LOOP        // B_Left
+				: CHARACTER_ACTION_STEP::END;        // B_Right
+		else
+			eStep = CHARACTER_ACTION_STEP::END2;    // Damage_C
+
+		m_pStateMachine->Try_Action_External(CHARACTER_ACTION::DAMAGE, eStep);
+	}
 
 	if (auto* pHUD = CHUD_GamePlay::Get_Instance())
 		pHUD->Notify_CombatInput();
@@ -70,6 +123,42 @@ _bool CPlayer::Try_GetDashHUDWorldPosition(_float3* pOutPosition) const
 		XMLoadFloat4x4(m_pTransformCom->Get_WorldMatrixPtr());
 
 	XMStoreFloat3(pOutPosition, XMVector3TransformCoord(XMVectorZero(), PivotWorld));
+	return true;
+}
+
+_bool CPlayer::Teleport_ToNavCell(CNavMesh* pNavMesh, _int iCellIndex)
+{
+	if (nullptr == pNavMesh || nullptr == m_pTransformCom)
+		return false;
+
+	const CCell* pCell = pNavMesh->Get_Cell(iCellIndex);
+	if (nullptr == pCell)
+		return false;
+
+	_float3 vPosition = pCell->Get_Center();
+	vPosition.y = pNavMesh->Compute_Height(iCellIndex, vPosition);
+
+	m_pTransformCom->Set_State(
+		STATE::POSITION,
+		XMVectorSetW(XMLoadFloat3(&vPosition), 1.f));
+
+	if (nullptr != m_pNavigationAgent)
+	{
+		if (false == m_pNavigationAgent->Has_NavMesh())
+			m_pNavigationAgent->Bind_NavMesh(pNavMesh);
+
+		m_pNavigationAgent->Set_CurrentCellIndex(iCellIndex);
+	}
+
+	return true;
+}
+_bool CPlayer::Try_Teleport(_float fSearchRadius, _float fConeAngleDegrees)
+{
+	CMonster* pTarget = Find_Target(fSearchRadius, fConeAngleDegrees);
+	if (nullptr == pTarget)
+		return false;   // Ìò∏Ï∂úÏûê Ï∏°ÏóêÏÑú Í∑∏ÎåÄÎ°ú Ïï°ÏÖò ÏßÑÏûÖ (Ï†úÏûêÎ¶¨ Ïû¨ÏÉù)
+
+	Teleport_BehindTarget(pTarget);
 	return true;
 }
 
@@ -103,6 +192,9 @@ HRESULT CPlayer::Initialize(void* pArg)
 	if (FAILED(Ready_PartObjects()))
 		return E_FAIL;
 
+	if (FAILED(Ready_WeaponTrailEffects()))
+		return E_FAIL;
+
 	m_pIntentResolver = CIntentResolver::Create();
 	if (nullptr == m_pIntentResolver)
 		return E_FAIL;
@@ -110,7 +202,7 @@ HRESULT CPlayer::Initialize(void* pArg)
 	if (FAILED(Ready_StateMachine()))
 		return E_FAIL;
 
-	//Set_EquippedWeapon(EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG);
+	Set_EquippedWeapon(EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG);
 
 	return S_OK;
 }
@@ -130,6 +222,7 @@ void CPlayer::Update(_float fTimeDelta)
 	{
 		Tick_DashRegen(fTimeDelta);
 		Tick_WeaponHideTimer(fTimeDelta);
+		Tick_SkillCooldowns(fTimeDelta);
 
 		PLAYER_RAW_INPUT_FRAME Raw{};
 		Gather_RawInput(&Raw);
@@ -163,17 +256,24 @@ void CPlayer::Update(_float fTimeDelta)
 			}
 			else
 			{
+				m_pStateMachine->Update_Skills(Intent);
 				m_pStateMachine->Update_Guard(Intent);
 				m_pStateMachine->Update_Combat(Intent);
 
-				if (false == m_pStateMachine->Is_AttackLocked() &&
-					false == m_pStateMachine->Is_GuardLocked())
+				const _bool bLocomotionAllowed =
+					(false == m_pStateMachine->Is_AttackLocked() &&
+						false == m_pStateMachine->Is_GuardLocked()) ||
+					true == Intent.bDashRequested;
+
+				if (true == bLocomotionAllowed)
 				{
 					m_pStateMachine->Update_LocoMotion(Intent);
 				}
 			}
 
 			m_pStateMachine->Update(fTimeDelta);
+
+			Tick_QTEWindow(fTimeDelta);
 		}
 
 		for (auto& Pair : m_PartObjects)
@@ -216,6 +316,9 @@ void CPlayer::Late_Update(_float fTimeDelta)
 		m_pCollider->Update(XMLoadFloat4x4(m_pTransformCom->Get_WorldMatrixPtr()));
 		m_pCollider->Register();
 	}
+
+	Update_SkillCollider();
+	Tick_WeaponTrailEffects(fTimeDelta);
 }
 
 HRESULT CPlayer::Render()
@@ -225,21 +328,28 @@ HRESULT CPlayer::Render()
 
 void CPlayer::Apply_RootMotion(const _float3& vLocalDelta)
 {
-	// delta 0¿Ã∏È Skip
+	// delta 0Ïù¥Î©¥ Skip
 	if (0.f == vLocalDelta.x && 0.f == vLocalDelta.y && 0.f == vLocalDelta.z)
 		return;
 
-	// CTransform¿« √‡¿ª ¡§±‘»≠«ÿ »∏¿¸ ±‚¿˙∏∏ √ﬂ√‚
+	_float3 vAdjustedLocal = vLocalDelta;
+	if (true == Is_SkillF_KnightKiller_Start())
+	{
+		vAdjustedLocal.x *= m_fSkillFStartTravelScale;
+		vAdjustedLocal.z *= m_fSkillFStartTravelScale;
+	}
+
+	// CTransformÏùò Ï∂ïÏùÑ Ï†ïÍ∑úÌôîÌï¥ ÌöåÏ†Ñ Í∏∞Ï†ÄÎßå Ï∂îÏ∂ú
 	_vector vRight = XMVector3Normalize(m_pTransformCom->Get_State(STATE::RIGHT));
 	_vector vUp = XMVector3Normalize(m_pTransformCom->Get_State(STATE::UP));
 	_vector vLook = XMVector3Normalize(m_pTransformCom->Get_State(STATE::LOOK));
 
-	// ∑Œƒ√ µ®≈∏ -> ø˘µÂ µ®≈∏ (»∏¿¸∏∏ ¿˚øÎ)
+	// Î°úÏª¨ Îç∏ÌÉÄ -> ÏõîÎìú Îç∏ÌÉÄ (ÌöåÏ†ÑÎßå Ï†ÅÏö©)
 	_vector vWorldDelta = XMVectorScale(vRight, vLocalDelta.x);
 	vWorldDelta = XMVectorAdd(vWorldDelta, XMVectorScale(vUp, vLocalDelta.y));
 	vWorldDelta = XMVectorAdd(vWorldDelta, XMVectorScale(vLook, vLocalDelta.z));
 
-	// «ˆ¿Á Positionø° ¥©¿˚
+	// ÌòÑÏû¨ PositionÏóê ÎàÑÏ†Å
 	_vector vPos = m_pTransformCom->Get_State(STATE::POSITION);
 	vPos = XMVectorAdd(vPos, vWorldDelta);
 
@@ -249,20 +359,41 @@ void CPlayer::Apply_RootMotion(const _float3& vLocalDelta)
 	Try_ApplyMovementPosition(vCandidatePosition);
 }
 
-void CPlayer::Handle_ActionTransition(CHARACTER_ACTION eFrom, CHARACTER_ACTION eTo, _bool bInitial)
+void CPlayer::Handle_ActionTransition(CHARACTER_ACTION eFromAction, CHARACTER_ACTION_STEP eFromStep,CHARACTER_ACTION eToAction, CHARACTER_ACTION_STEP eToStep, _bool bInitial)
 {
 	if (nullptr == m_pBody)
 		return;
 
-	m_pBody->Play_Action(eTo);
+	m_pBody->Play_Action(eToAction, eToStep);
+
+	if (false == bInitial)
+		Play_PlayerActionSound(eToAction, eToStep);
 
 	const _bool bLeavingDash =
-		(CHARACTER_ACTION::DASH == eFrom || CHARACTER_ACTION::BACK_DASH == eFrom) &&
-		(CHARACTER_ACTION::DASH != eTo && CHARACTER_ACTION::BACK_DASH != eTo);
+		(CHARACTER_ACTION::DASH == eFromAction || CHARACTER_ACTION::BACK_DASH == eFromAction) &&
+		(CHARACTER_ACTION::DASH != eToAction && CHARACTER_ACTION::BACK_DASH != eToAction);
 
 	if (true == bLeavingDash)
 	{
 		Resolve_BodyBlockOverlap();
+	}
+
+	// ÏïàÏ†ÑÎßù: Ïä§ÌÇ¨ ÏΩúÎùºÏù¥Îçî Î≥¥Ïú† Ïï°ÏÖò ‚Üí ÎπÑ-Ïä§ÌÇ¨ Ïï°ÏÖò Ï†ÑÏù¥ Ïãú Í∞ïÏ†ú OFF
+	// (ÌûàÌä∏/ÏÇ¨Îßù Îì±ÏúºÎ°ú Ïä§ÌÇ¨Ïù¥ Ï§ëÎã®Îèº ATTACK_HITBOX_OFF NotifyÎ•º Î™ª Î∞õÎäî Í≤ΩÏö∞ ÎåÄÎπÑ)
+	auto Is_SkillColliderAction = [](CHARACTER_ACTION e) -> _bool
+		{
+			return (CHARACTER_ACTION::SKILL_F == e)
+				|| (CHARACTER_ACTION::SKILL_Q == e)
+				|| (CHARACTER_ACTION::SKILL_E == e)
+				|| (CHARACTER_ACTION::SKILL_R == e)
+				|| (CHARACTER_ACTION::QTE_EXTREME_DASH == e)
+				|| (CHARACTER_ACTION::WEAPON_SWAP == e);
+		};
+
+	if (true == Is_SkillColliderAction(eFromAction)
+		&& false == Is_SkillColliderAction(eToAction))
+	{
+		Enable_SkillCollider(false);
 	}
 }
 
@@ -296,9 +427,9 @@ CHARACTER_ACTION CPlayer::Pick_RunFastVariant(const _float3& vMoveDirWorld, CHAR
 	_float fDot = XMVectorGetX(XMVector3Dot(vLook, vDir));
 	_float fCrossY = XMVectorGetY(XMVector3Cross(vLook, vDir));
 
-	// Hysteresis: ¡¯¿‘ ¿”∞Ë¥¬ ¥¿Ωº, ¿Ã≈ª ¿”∞Ë¥¬ ∫˝∫˝ °Ê ∞Ê∞Ë ≈‰±€∏µ πÊ¡ˆ
-	constexpr _float fEnterCos = 0.866f;  // 30°∆  (FAST °Ê LEFT/RIGHT)
-	constexpr _float fExitCos = 0.966f;  // 15°∆  (LEFT/RIGHT °Ê FAST)
+	// Hysteresis: ÏßÑÏûÖ ÏûÑÍ≥ÑÎäî ÎäêÏä®, Ïù¥ÌÉà ÏûÑÍ≥ÑÎäî Îπ°Îπ° ‚Üí Í≤ΩÍ≥Ñ ÌÜ†Í∏ÄÎßÅ Î∞©ÏßÄ
+	constexpr _float fEnterCos = 0.866f;  // 30¬∞  (FAST ‚Üí LEFT/RIGHT)
+	constexpr _float fExitCos = 0.966f;  // 15¬∞  (LEFT/RIGHT ‚Üí FAST)
 
 	const _bool bInLean =
 		(CHARACTER_ACTION::RUN_FAST_LEFT == eCurrent) ||
@@ -321,6 +452,15 @@ void CPlayer::Set_EquippedWeapon(EQUIPPED_WEAPON_ID eId)
 
 	m_eEquippedWeapon = eId;
 	Apply_Loadout();
+
+	if (nullptr != m_pBody)
+	{
+		m_pBody->Set_EquippedWeaponId(eId);
+
+		const WEAPON_INFO* pInfo = Find_WeaponInfo(eId);
+		const WEAPON_TYPE eType = (nullptr != pInfo) ? pInfo->eCategory : WEAPON_TYPE::DEFAULT;
+		m_pBody->Set_WeaponType(eType);
+	}
 }
 
 _bool CPlayer::Consume_DashCharge()
@@ -348,7 +488,7 @@ void CPlayer::Set_WeaponsVisible(_bool bVisible)
 
 void CPlayer::Tick_DashRegen(_float fTimeDelta)
 {
-	// «◊ªÛ ¿œ¡§ ¡÷±‚ - «Æ ¬˜¡ˆ ø©µµ ≈∏¿Ã∏”¥¬ ∏Æº¬
+	// Ìï≠ÏÉÅ ÏùºÏ†ï Ï£ºÍ∏∞ - ÌíÄ Ï∞®ÏßÄ Ïó¨ÎèÑ ÌÉÄÏù¥Î®∏Îäî Î¶¨ÏÖã
 	m_fDashRegenTimer += fTimeDelta;
 
 	while (m_fDashRegenTimer >= m_fDashRegenInterval)
@@ -379,7 +519,38 @@ void CPlayer::Tick_WeaponHideTimer(_float fTimeDelta)
 	if (m_fIdleTimer >= m_fIdleThreshold)
 	{
 		m_fIdleTimer = 0.f;
-		m_pStateMachine->Try_Transition(ETOUI(CHARACTER_ACTION::UNDRAW));
+		m_pStateMachine->Try_Action(CHARACTER_ACTION::UNDRAW);
+	}
+}
+
+void CPlayer::Trigger_WeaponSwap()
+{
+	const EQUIPPED_WEAPON_ID eNext =
+		(EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon)
+		? EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG
+		: EQUIPPED_WEAPON_ID::KNIGHT_KILLER;
+
+	Set_EquippedWeapon(eNext);
+	Set_WeaponsVisible(true);
+
+	m_fWeaponSwapCooldownTimer = WEAPON_SWAP_COOLDOWN;
+}
+
+void CPlayer::Trigger_Skill(SKILL_SLOT eSlot)
+{
+	Set_WeaponsVisible(true);
+	m_fSkillCooldown[ETOI(eSlot)] = SKILL_COOLDOWN[ETOI(eSlot)];
+}
+
+void CPlayer::Tick_SkillCooldowns(_float fTimeDelta)
+{
+	if (m_fWeaponSwapCooldownTimer > 0.f)
+		m_fWeaponSwapCooldownTimer = max(0.f, m_fWeaponSwapCooldownTimer - fTimeDelta);
+
+	for (_int i = 0; i < SKILL_SLOT_COUNT; ++i)
+	{
+		if (m_fSkillCooldown[i] > 0.f)
+			m_fSkillCooldown[i] = max(0.f, m_fSkillCooldown[i] - fTimeDelta);
 	}
 }
 
@@ -454,6 +625,60 @@ HRESULT CPlayer::Ready_PartObjects()
 	return S_OK;
 }
 
+HRESULT CPlayer::Ready_WeaponTrailEffects()
+{
+	if (nullptr == m_pBody)
+		return E_FAIL;
+
+	const _float4x4* pParentMatrix = &m_pBody->Get_CombinedWorldMatrix();
+	const _float4x4* pRightStart = m_pBody->Get_BoneMatrixPtr("Prop_Weapon_Dualwield_01_R");
+	const _float4x4* pRightEnd = m_pBody->Get_BoneMatrixPtr("FX_Point_R_Weapon");
+	const _float4x4* pLeftStart = m_pBody->Get_BoneMatrixPtr("Prop_Weapon_Dualwield_01_L");
+	const _float4x4* pLeftEnd = m_pBody->Get_BoneMatrixPtr("FX_Point_L_Weapon");
+
+	if (nullptr == pParentMatrix || nullptr == pRightStart || nullptr == pRightEnd ||
+		nullptr == pLeftStart || nullptr == pLeftEnd)
+		return E_FAIL;
+
+	CWeaponTrailEffect::WEAPON_TRAIL_EFFECT_DESC RightDesc{};
+	RightDesc.pParentWorldMatrix = pParentMatrix;
+	RightDesc.pStartBoneMatrix = pRightStart;
+	RightDesc.pEndBoneMatrix = pRightEnd;
+	RightDesc.pTexturePrototypeTag = TEXT("Prototype_Component_Texture_Effect_Trail_PlayerWeapon");
+	RightDesc.vColor = Get_WeaponTrailColor(Resolve_HandWeapon(false));
+	RightDesc.iMaxSamples = 28;
+	RightDesc.fSampleInterval = 0.006f;
+	RightDesc.fLifeTime = 0.18f;
+	RightDesc.fMinSampleDistance = 0.006f;
+
+	m_pWeaponTrailR = dynamic_cast<CWeaponTrailEffect*>(
+		m_pGameInstance->Clone_Prototype(
+			PROTOTYPE::GAMEOBJECT,
+			ETOUI(LEVEL::GAMEPLAY),
+			TEXT("Prototype_GameObject_WeaponTrailEffect"),
+			&RightDesc));
+
+	if (nullptr == m_pWeaponTrailR)
+		return E_FAIL;
+
+	CWeaponTrailEffect::WEAPON_TRAIL_EFFECT_DESC LeftDesc = RightDesc;
+	LeftDesc.pStartBoneMatrix = pLeftStart;
+	LeftDesc.pEndBoneMatrix = pLeftEnd;
+	LeftDesc.vColor = Get_WeaponTrailColor(Resolve_HandWeapon(true));
+
+	m_pWeaponTrailL = dynamic_cast<CWeaponTrailEffect*>(
+		m_pGameInstance->Clone_Prototype(
+			PROTOTYPE::GAMEOBJECT,
+			ETOUI(LEVEL::GAMEPLAY),
+			TEXT("Prototype_GameObject_WeaponTrailEffect"),
+			&LeftDesc));
+
+	if (nullptr == m_pWeaponTrailL)
+		return E_FAIL;
+
+	return S_OK;
+}
+
 HRESULT CPlayer::Ready_StateMachine()
 {
 	const CHARACTER_ANIM_TABLE_DESC* pAnimTable = Find_CharacterAnimTable(CHARACTER_TYPE::SUNGJINWOO_OVERDRIVE);
@@ -491,7 +716,7 @@ HRESULT CPlayer::Ready_Components(const PLAYER_DESC& Desc)
 
 	if (nullptr != m_pNavigationAgent &&
 		m_pNavigationAgent->Has_NavMesh() &&
-		NAVMESH_INVALID_INDEX == m_pNavigationAgent->Get_CurrentCellIndex())
+		INVALID_INDEX == m_pNavigationAgent->Get_CurrentCellIndex())
 	{
 		_float3 vPosition = {};
 		XMStoreFloat3(&vPosition, m_pTransformCom->Get_State(STATE::POSITION));
@@ -506,20 +731,16 @@ HRESULT CPlayer::Ready_Components(const PLAYER_DESC& Desc)
 	CCollider::COLLIDER_DESC ColliderDesc{};
 	ColliderDesc.eBoundingType = COLLIDER::OBB;
 	ColliderDesc.eGroup = COLLISION_GROUP::PLAYER_BODY;
-	ColliderDesc.vCenter = _float3(0.f, 0.9f, 0.f);
-	ColliderDesc.vSize = _float3(0.6f, 1.8f, 0.6f);
+	ColliderDesc.vCenter = _float3(0.f, 1.035f, 0.f);
+	ColliderDesc.vSize = _float3(0.69f, 2.07f, 0.69f);
 	ColliderDesc.vRadians = _float3(0.f, 0.f, 0.f);
 	ColliderDesc.pOwner = this;
 
 	if (FAILED(m_pCollider->Initialize(&ColliderDesc)))
 		return E_FAIL;
 
-	//m_pCollider->Set_OnHitEnter([](CCollider* pOther) {
-	//	OutputDebugStringA("[Collision] Player Body ENTER\n");
-	//	});
-	//m_pCollider->Set_OnHitExit([](CCollider* pOther) {
-	//	OutputDebugStringA("[Collision] Player Body EXIT\n");
-	//	});
+	if (FAILED(Ready_SkillCollider()))
+		return E_FAIL;
 
 	return S_OK;
 }
@@ -585,8 +806,6 @@ _bool CPlayer::Resolve_BodyBlockingPosition(const _float3& vCurrentPosition, con
 
 	const _bool bUseCellFilter = (iNumCandidateCells > 0);
 
-	constexpr _float PLAYER_BODY_BLOCK_RADIUS = { 0.35f };
-	constexpr _float BODY_BLOCK_SKIN = { 0.05f };
 	constexpr _float BODY_BLOCK_SAFE_T = { 0.001f };
 	constexpr _float BODY_BLOCK_QUERY_MARGIN = { 0.5f };
 
@@ -607,7 +826,7 @@ _bool CPlayer::Resolve_BodyBlockingPosition(const _float3& vCurrentPosition, con
 		if (pMonster->Get_CurrentHP() <= 0.f)
 			continue;
 
-		// ¿”Ω√∑Œ ≤®µ“ - ∏ÛΩ∫≈Õ ºˆ ∏πæ∆¡ˆ∏È ¡÷ºÆ «ÿ¡¶
+		// ÏûÑÏãúÎ°ú Í∫ºÎë† - Î™¨Ïä§ÌÑ∞ Ïàò ÎßéÏïÑÏßÄÎ©¥ Ï£ºÏÑù Ìï¥Ï†ú
 		//if (true == bUseCellFilter)
 		//{
 		//	const _int iMonsterCellIndex = pMonster->Get_CurrentNavCellIndex();
@@ -798,6 +1017,10 @@ _bool CPlayer::Try_ApplyMovementPosition(const _float3& vCandidatePosition)
 	if (false == Resolve_NavigationPosition(vCandidatePosition, &vResolvedPosition))
 		return false;
 
+	// Ïï†ÎãàÎ©îÏù¥ÏÖòÏóê YÏ¢åÌëú Î≥ÄÎèôÏù¥ ÏûàÏùÑÍ≤ΩÏö∞ Ïû¨ÏÉù ÌõÑ Îã§Ïãú Î≥µÏõê
+	if (true == Is_AerialAction())
+		vResolvedPosition.y = vCandidatePosition.y;
+
 	if (BODY_BLOCK_POLICY::BLOCK == Get_BodyBlockPolicy())
 	{
 		_float3 vBodyBlockedPosition = {};
@@ -865,7 +1088,7 @@ void CPlayer::Add_BodyBlockCandidateCell(_int* pCandidateCells, _uint* pNumCandi
 	if (nullptr == pCandidateCells || nullptr == pNumCandidateCells)
 		return;
 
-	if (NAVMESH_INVALID_INDEX == iCellIndex)
+	if (INVALID_INDEX == iCellIndex)
 		return;
 
 	for (_uint i = 0; i < *pNumCandidateCells; ++i)
@@ -886,7 +1109,7 @@ _bool CPlayer::Contains_BodyBlockCandidateCell(const _int* pCandidateCells, _uin
 	if (nullptr == pCandidateCells)
 		return false;
 
-	if (NAVMESH_INVALID_INDEX == iCellIndex)
+	if (INVALID_INDEX == iCellIndex)
 		return false;
 
 	for (_uint i = 0; i < iNumCandidateCells; ++i)
@@ -983,6 +1206,11 @@ void CPlayer::Gather_RawInput(PLAYER_RAW_INPUT_FRAME* pOutRaw)
 		pOutRaw->bMoveRightHeld = (m_pGameInstance->Get_KeyState('D') & 0x80) != 0;
 	}
 	pOutRaw->bDashPressed = m_pGameInstance->Get_KeyDown(VK_SPACE);
+	pOutRaw->bWeaponSwapPressed = m_pGameInstance->Get_KeyDown('C');
+	pOutRaw->bSkillFPressed = m_pGameInstance->Get_KeyDown('F');
+	pOutRaw->bSkillQPressed = m_pGameInstance->Get_KeyDown('Q');
+	pOutRaw->bSkillEPressed = m_pGameInstance->Get_KeyDown('E');
+	pOutRaw->bShiftPressed = m_pGameInstance->Get_KeyDown(VK_SHIFT);
 
 	const _bool bMouseLBtnDown = m_pGameInstance->Get_MouseBtnDown(MOUSEBTN::LBUTTON);
 	const _bool bMouseLBtnHeld = m_pGameInstance->Get_MouseBtnState(MOUSEBTN::LBUTTON);
@@ -1019,18 +1247,18 @@ void CPlayer::Apply_MoveIntent(const PLAYER_INTENT_FRAME& Intent, _float fTimeDe
 
 	_vector vDirWorld = XMLoadFloat3(&Intent.vMoveDirWorld);
 
-	// «ˆ¿Á Look (XZ) øÕ ∏Ò«• πÊ«‚ ªÁ¿Ã ∞¢µµ ¬˜¿Ã ∞ËªÍ
+	// ÌòÑÏû¨ Look (XZ) ÏôÄ Î™©Ìëú Î∞©Ìñ• ÏÇ¨Ïù¥ Í∞ÅÎèÑ Ï∞®Ïù¥ Í≥ÑÏÇ∞
 	_vector vLookXZ = XMVector3Normalize(XMVectorSetY(pTransform->Get_State(STATE::LOOK), 0.f));
 	_vector vTargetXZ = XMVector3Normalize(XMVectorSetY(vDirWorld, 0.f));
 	_float fDot = XMVectorGetX(XMVector3Dot(vLookXZ, vTargetXZ));
 	fDot = max(-1.f, min(1.f, fDot));
 	const _float fAngleDeg = XMConvertToDegrees(acosf(fDot));
 
-	// ∞¢µµ ¿«¡∏ »∏¿¸ º”µµ: ¿€¿∫ ∞¢=¥¿∏≤(lean ∞°Ω√), ≈´ ∞¢=∫¸∏ß(Ω∫≥¿)
-	constexpr _float fSlowDeg = 30.f;        // ¿Ã«œ: ¥¿∏∞ »∏¿¸
-	constexpr _float fSnapDeg = 135.f;       // ¿ÃªÛ: √÷¥Î »∏¿¸ (Ω∫≥¿)
-	constexpr _float fSlowRotDeg = 540.f;    // ¥¿∏∞ »∏¿¸ º”µµ
-	const _float fMaxRotDeg = XMConvertToDegrees(pTransform->Get_RotationPerSec()); // Desc ∞™ (1440 ±«¿Â)
+	// Í∞ÅÎèÑ ÏùòÏ°¥ ÌöåÏ†Ñ ÏÜçÎèÑ: ÏûëÏùÄ Í∞Å=ÎäêÎ¶º(lean Í∞ÄÏãú), ÌÅ∞ Í∞Å=Îπ†Î¶Ñ(Ïä§ÎÉÖ)
+	constexpr _float fSlowDeg = 30.f;        // Ïù¥Ìïò: ÎäêÎ¶∞ ÌöåÏ†Ñ
+	constexpr _float fSnapDeg = 135.f;       // Ïù¥ÏÉÅ: ÏµúÎåÄ ÌöåÏ†Ñ (Ïä§ÎÉÖ)
+	constexpr _float fSlowRotDeg = 540.f;    // ÎäêÎ¶∞ ÌöåÏ†Ñ ÏÜçÎèÑ
+	const _float fMaxRotDeg = XMConvertToDegrees(pTransform->Get_RotationPerSec()); // Desc Í∞í (1440 Í∂åÏû•)
 
 	_float fRotDeg = fSlowRotDeg;
 	if (fAngleDeg >= fSnapDeg)
@@ -1046,7 +1274,7 @@ void CPlayer::Apply_MoveIntent(const PLAYER_INTENT_FRAME& Intent, _float fTimeDe
 	const _float fStepRad = XMConvertToRadians(fRotDeg) * fTimeDelta;
 	pTransform->Rotate_Toward_XZ(vDirWorld, fStepRad);
 
-	// »∏¿¸ »ƒ ∞ªΩ≈µ» Look ¿∏∑Œ ¿Ãµø
+	// ÌöåÏ†Ñ ÌõÑ Í∞±Ïã†Îêú Look ÏúºÎ°ú Ïù¥Îèô
 	vLookXZ = XMVector3Normalize(XMVectorSetY(pTransform->Get_State(STATE::LOOK), 0.f));
 	const _float fSpeed = pTransform->Get_SpeedPerSec() * m_fSpeedCoeff;
 	_vector vPos = pTransform->Get_State(STATE::POSITION);
@@ -1060,8 +1288,8 @@ void CPlayer::Apply_MoveIntent(const PLAYER_INTENT_FRAME& Intent, _float fTimeDe
 
 _float CPlayer::Query_CameraYaw() const
 {
-	// VIEW »∏¿¸∫Œ = ƒ´∏ﬁ∂Û World »∏¿¸∫Œ¿« Transpose
-	// ƒ´∏ﬁ∂Û Look (ø˘µÂ) = (View._13, View._23, View._33)
+	// VIEW ÌöåÏ†ÑÎ∂Ä = Ïπ¥Î©îÎùº World ÌöåÏ†ÑÎ∂ÄÏùò Transpose
+	// Ïπ¥Î©îÎùº Look (ÏõîÎìú) = (View._13, View._23, View._33)
 	const _float4x4* pView = m_pGameInstance->Get_Transform(D3DTS::VIEW);
 	if (nullptr == pView)
 		return 0.f;
@@ -1084,13 +1312,13 @@ void CPlayer::Apply_Loadout()
 
 	if (EQUIPPED_WEAPON_ID::NONE == m_eEquippedWeapon)
 	{
-		// DEFAULT - æÁº’ µ∆˙∆Æ ¥‹∞À «Æ
+		// DEFAULT - ÏñëÏÜê ÎîîÌè¥Ìä∏ Îã®Í≤Ä ÌíÄ
 		pRightModel = DAGGER_POOL[0];		// KnightKiller
 		pLeftModel = DAGGER_POOL[1];		// KasakaVenomFang
 	}
 	else if (WEAPON_TYPE::DAGGER == pInfo->eCategory)
 	{
-		// ¥‹∞À ¿Â¬¯
+		// Îã®Í≤Ä Ïû•Ï∞©
 		pRightModel = pInfo->pModelTag;
 		for (const _tchar* pCandidate : DAGGER_POOL)
 		{
@@ -1103,7 +1331,7 @@ void CPlayer::Apply_Loadout()
 	}
 	else
 	{
-		// DAGGER π´±‚ æ∆¥— ¥‹¿œ π´±‚ ∞ÊøÏ
+		// DAGGER Î¨¥Í∏∞ ÏïÑÎãå Îã®Ïùº Î¨¥Í∏∞ Í≤ΩÏö∞
 		pRightModel = pInfo->pModelTag;
 		bLeftVisible = false;
 	}
@@ -1126,6 +1354,28 @@ void CPlayer::Refresh_WeaponVisibility()
 		m_pWeaponL->Set_Visible(m_bWeaponsVisible && m_bLeftVisibleFromLoadOut);
 }
 
+void CPlayer::Set_WeaponTrailActive(_bool bActive)
+{
+	if (nullptr != m_pWeaponTrailR)
+	{
+		m_pWeaponTrailR->Set_Color(Get_WeaponTrailColor(Resolve_HandWeapon(false)));
+		m_pWeaponTrailR->Set_Active(bActive && m_bWeaponsVisible);
+	}
+
+	if (nullptr != m_pWeaponTrailL)
+	{
+		m_pWeaponTrailL->Set_Color(Get_WeaponTrailColor(Resolve_HandWeapon(true)));
+		m_pWeaponTrailL->Set_Active(bActive && m_bWeaponsVisible && m_bLeftVisibleFromLoadOut);
+	}
+}
+
+void CPlayer::Play_FootstepSound()
+{
+	if (nullptr == m_pGameInstance)
+		return;
+
+	m_pGameInstance->Play_Sound(TEXT("PC_FootPrint_Stone_01_02.wav"), SOUND_CHANNEL::SFX, 0.28f, false);
+}
 void CPlayer::Update_WeaponHitboxes()
 {
 	const _bool bHitboxActive =
@@ -1155,10 +1405,63 @@ void CPlayer::Update_WeaponHitboxes()
 	m_bPrevAttackHitboxActive = bHitboxActive;
 }
 
-void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)
+void CPlayer::Tick_WeaponTrailEffects(_float fTimeDelta)
+{
+	if (nullptr != m_pWeaponTrailR)
+	{
+		m_pWeaponTrailR->Update(fTimeDelta);
+		m_pWeaponTrailR->Late_Update(fTimeDelta);
+	}
+
+	if (nullptr != m_pWeaponTrailL)
+	{
+		m_pWeaponTrailL->Update(fTimeDelta);
+		m_pWeaponTrailL->Late_Update(fTimeDelta);
+	}
+}
+
+_float4 CPlayer::Get_WeaponTrailColor(EQUIPPED_WEAPON_ID eWeapon) const
+{
+	switch (eWeapon)
+	{
+	case EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG:
+		return _float4(0.05f, 0.38f, 1.15f, 1.35f);
+
+	case EQUIPPED_WEAPON_ID::KNIGHT_KILLER:
+		return _float4(1.25f, 0.04f, 0.02f, 1.35f);
+
+	default:
+		return _float4(0.9f, 0.9f, 1.f, 1.f);
+	}
+}
+
+EQUIPPED_WEAPON_ID CPlayer::Resolve_HandWeapon(_bool bLeftHand) const
+{
+	if (EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon)
+		return (true == bLeftHand) ? EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG : EQUIPPED_WEAPON_ID::KNIGHT_KILLER;
+
+	if (EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == m_eEquippedWeapon)
+		return (true == bLeftHand) ? EQUIPPED_WEAPON_ID::KNIGHT_KILLER : EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG;
+
+	return (true == bLeftHand) ? EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG : EQUIPPED_WEAPON_ID::KNIGHT_KILLER;
+}
+
+void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction, CMonster* pAttacker)
 {
 	if (nullptr == m_pStateMachine)
 		return;
+
+	if (true == m_bInvincible)
+	{
+		On_DodgeSucceeded(pAttacker);
+		return;
+	}
+
+	if (true == m_bParryWindow)
+	{
+		On_DamageBlocked(pAttacker);
+		return;
+	}
 
 	m_AttackHitTargets.clear();
 	m_bPrevAttackHitboxActive = false;
@@ -1170,6 +1473,72 @@ void CPlayer::Enter_FloatReaction(CHARACTER_ACTION eFloatAction)
 		m_pWeaponL->Set_AttackHitboxActive(false);
 
 	m_pStateMachine->Enter_FloatReaction(eFloatAction);
+
+	if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+		pHUD->Notify_CombatInput();
+}
+
+void CPlayer::Enable_SkillCollider(_bool bEnable)
+{
+	if (true == bEnable && false == m_bSkillColliderActive)
+		m_SkillHitTargets.clear();
+
+	m_bSkillColliderActive = bEnable;
+}
+
+void CPlayer::Set_SkillColliderRadius(_float fRadius)
+{
+	if (nullptr == m_pSkillCollider)
+		return;
+
+	m_pSkillCollider->Set_Radius(fRadius);
+	m_fSkillColliderRadius = fRadius;
+}
+
+void CPlayer::Set_Invincible(_bool bInvincible)
+{
+	if (true == bInvincible)
+		m_bDodgeConsumedThisInvincible = false;
+
+	m_bInvincible = bInvincible;
+}
+
+void CPlayer::On_DamageBlocked(CMonster* pAttacker)
+{
+#ifdef _DEBUG
+	OutputDebugStringA("[Player] PARRY SUCCESS - nullify, break attacker, counter motion\n");
+#endif
+
+	if (nullptr != pAttacker)
+		pAttacker->Force_Break();
+
+	if (nullptr != m_pGameInstance)
+	{
+		m_pGameInstance->Play_Sound(TEXT("SungJinWoo_S_Artifact_IceSpike_Parry_Skill_01_1_St.wav"), SOUND_CHANNEL::SFX, 0.75f, false);
+		m_pGameInstance->Play_Sound(TEXT("Dia_SungJinWooS_QTE_Parrying_1_1.wav"), SOUND_CHANNEL::PLAYER, 0.55f, false);
+	}
+
+	if (nullptr != m_pStateMachine)
+		m_pStateMachine->Enter_ParryCounter();
+
+	if (auto* pHUD = CHUD_GamePlay::Get_Instance())
+		pHUD->Notify_CombatInput();
+}
+
+void CPlayer::Consume_LatestQTEWindow()
+{
+	if (true == m_QTEWindows.empty())
+		return;
+
+	const QTE_TYPE eType = m_QTEWindows.back().eType;
+	m_QTEWindows.pop_back();
+
+	// Ìï¥Îãπ Ï¢ÖÎ•ò Ïø®Îã§Ïö¥ ÏãúÏûë
+	m_fQTECooldown[ETOI(eType)] = QTE_COOLDOWN[ETOI(eType)];
+
+#ifdef _DEBUG
+	OutputDebugStringA("[QTE] Window CONSUMED - cooldown started\n");
+#endif
 }
 
 void CPlayer::On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther)
@@ -1194,7 +1563,9 @@ void CPlayer::On_WeaponHitEnter(CWeapon* pSourceWeapon, CCollider* pOther)
 	if (nullptr == pMonster)
 		return;
 
-	pMonster->Take_Damage(10.f);
+	m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.45f, false);
+
+	pMonster->Take_Damage(250.f);
 }
 
 const WEAPON_INFO* CPlayer::Find_WeaponInfo(EQUIPPED_WEAPON_ID eId)
@@ -1207,6 +1578,418 @@ const WEAPON_INFO* CPlayer::Find_WeaponInfo(EQUIPPED_WEAPON_ID eId)
 	return nullptr;
 }
 
+_bool CPlayer::Is_AerialAction() const
+{
+	if (nullptr == m_pStateMachine)
+		return false;
+
+	const CHARACTER_ACTION eCur = m_pStateMachine->Get_CurrentCharacterAction();
+	const CHARACTER_ACTION_STEP eStep = m_pStateMachine->Get_CurrentCharacterStep();
+
+	// Kasaka SKILL_F / SKILL_E(Skill_08) NONE ‚Äî Í≥µÏ§ë ÎèôÏûë(Ïï†Îãà Y Î≥ÄÎèô Ïú†ÏßÄ)
+	if ((CHARACTER_ACTION::SKILL_F == eCur || CHARACTER_ACTION::SKILL_E == eCur) &&
+		CHARACTER_ACTION_STEP::NONE == eStep &&
+		EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG == m_eEquippedWeapon)
+		return true;
+
+	return false;
+}
+
+void CPlayer::Open_QTEWindow(CMonster* pAttacker)
+{
+	// ÌòÑÏû¨ Î™®Îì† ÌöåÌîº ÏÑ±Í≥µÏùÄ EXTREME_DASH Ïπ¥Ïö¥ÌÑ∞Î°ú Îß§Ìïë (Ï∂îÌõÑ attacker Ï¢ÖÎ•òÎ≥Ñ Î∂ÑÍ∏∞ Í∞ÄÎä•)
+	QTE_WINDOW Window{};
+	Window.eType = QTE_TYPE::EXTREME_DASH;
+	Window.fTimer = QTE_WINDOW_DURATION;
+	Window.pAttacker = pAttacker;
+
+	m_QTEWindows.push_back(Window);
+
+#ifdef _DEBUG
+	char szBuf[128];
+	sprintf_s(szBuf, "[QTE] Window OPEN (1.5s) - stack=%zu - Shift to counter\n", m_QTEWindows.size());
+	OutputDebugStringA(szBuf);
+#endif
+}
+
+void CPlayer::On_DodgeSucceeded(CMonster* pAttacker)
+{
+	if (true == m_bDodgeConsumedThisInvincible)
+		return;
+
+	m_bDodgeConsumedThisInvincible = true;
+	Open_QTEWindow(pAttacker);
+
+	if (nullptr != m_pGameInstance)
+	{
+		const _tchar* pVoiceKeys[] =
+		{
+			TEXT("Dia_SungJinWooS_Extreme_Dash_1_1.wav"),
+			TEXT("Dia_SungJinWooS_Extreme_Dash_1_2.wav"),
+		};
+
+		const _uint iIndex = rand() % _countof(pVoiceKeys);
+		m_pGameInstance->Play_Sound(pVoiceKeys[iIndex], SOUND_CHANNEL::PLAYER, 0.75f, false);
+	}
+}
+
+void CPlayer::Tick_QTEWindow(_float fTimeDelta)
+{
+	// 1) Í∞Å ÏúàÎèÑÏö∞ ÌÉÄÏù¥Î®∏ Í∞êÏÜå(ÎèÖÎ¶Ω, ÎèôÏùº dt) + ÎßåÎ£å Ï†úÍ±∞
+	for (auto it = m_QTEWindows.begin(); it != m_QTEWindows.end(); )
+	{
+		it->fTimer -= fTimeDelta;
+		if (it->fTimer <= 0.f)
+		{
+#ifdef _DEBUG
+			OutputDebugStringA("[QTE] Window EXPIRED\n");
+#endif
+			it = m_QTEWindows.erase(it);
+		}
+		else
+			++it;
+	}
+
+	// 2) Ï¢ÖÎ•òÎ≥Ñ Ïø®Îã§Ïö¥ Í∞êÏÜå
+	for (int i = 0; i < QTE_TYPE_COUNT; ++i)
+	{
+		if (m_fQTECooldown[i] > 0.f)
+			m_fQTECooldown[i] -= fTimeDelta;
+	}
+}
+
+HRESULT CPlayer::Ready_SkillCollider()
+{
+	m_pSkillCollider = CCollider::Create(m_pDevice, m_pContext);
+	if (nullptr == m_pSkillCollider)
+		return E_FAIL;
+
+	CCollider::COLLIDER_DESC Desc{};
+	Desc.eBoundingType = COLLIDER::SPHERE;
+	Desc.eGroup = COLLISION_GROUP::PLAYER_ATTACK;  
+	Desc.vCenter = _float3(0.f, 0.9f, 0.f);         
+	Desc.vSize = _float3(m_fSkillColliderRadius, 0.f, 0.f);  
+	Desc.vRadians = _float3(0.f, 0.f, 0.f);
+	Desc.pOwner = this;
+
+	if (FAILED(m_pSkillCollider->Initialize(&Desc)))
+	{
+		Safe_Release(m_pSkillCollider);
+		return E_FAIL;
+	}
+
+	m_pSkillCollider->Set_OnHitEnter([this](CCollider* pOther)
+		{
+			On_SkillColliderHit(pOther);
+		});
+
+	m_pSkillCollider->Set_OnHitStay([this](CCollider* pOther)
+		{
+			On_SkillColliderHit(pOther);
+		});
+}
+
+void CPlayer::Update_SkillCollider()
+{
+	if (nullptr == m_pSkillCollider || nullptr == m_pTransformCom)
+		return;
+
+	if (false == m_bSkillColliderActive)
+		return;
+
+	// Player Transform ÏúÑÏπò + LOOK Î∞©Ìñ• forward offset ÏúºÎ°ú sphere ÏõîÎìú ÏúÑÏπò Í≥ÑÏÇ∞
+	_vector vLook = XMVector3Normalize(
+		XMVectorSetY(m_pTransformCom->Get_State(STATE::LOOK), 0.f));
+	_vector vPos = m_pTransformCom->Get_State(STATE::POSITION);
+	_vector vSpherePos = XMVectorAdd(vPos, XMVectorScale(vLook, m_fSkillColliderForwardOffset));
+
+	_matrix mWorld = XMMatrixIdentity();
+	mWorld.r[3] = XMVectorSetW(vSpherePos, 1.f);
+
+	m_pSkillCollider->Update(mWorld);
+	m_pSkillCollider->Register();
+}
+
+void CPlayer::On_SkillColliderHit(CCollider* pOther)
+{
+	if (false == m_bSkillColliderActive)
+		return;
+	if (nullptr == m_pStateMachine || nullptr == pOther)
+		return;
+
+	// R6-B: SKILL_F + START + KnightKiller ‚Äî Ï¶âÏãú Start‚ÜíLoop Ï†ÑÏù¥ (damage X)
+	if (true == Is_SkillF_KnightKiller_Start())
+	{
+		m_pStateMachine->Try_Action_External(
+			CHARACTER_ACTION::SKILL_F, CHARACTER_ACTION_STEP::LOOP);
+
+		Enable_SkillCollider(false);
+		return;
+	}
+
+	if (m_fSkillColliderDamage <= 0.f)
+		return;
+
+	if (COLLISION_GROUP::MONSTER_BODY != pOther->Get_Group())
+		return;
+
+	CGameObject* pTarget = pOther->Get_Owner();
+	if (nullptr == pTarget)
+		return;
+
+	if (m_SkillHitTargets.end() != m_SkillHitTargets.find(pTarget))
+		return;
+	m_SkillHitTargets.insert(pTarget);
+
+	CMonster* pMonster = dynamic_cast<CMonster*>(pTarget);
+	if (nullptr == pMonster)
+		return;
+
+	const CHARACTER_ACTION		eCurAction = m_pStateMachine->Get_CurrentCharacterAction();
+	const CHARACTER_ACTION_STEP eCurStep = m_pStateMachine->Get_CurrentCharacterStep();
+
+	switch (m_eEquippedWeapon)
+	{
+	case EQUIPPED_WEAPON_ID::KASAKA_VENOM_FANG:
+		switch (eCurAction)
+		{
+		case CHARACTER_ACTION::SKILL_F:
+		case CHARACTER_ACTION::SKILL_E:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.55f, false);
+			break;
+
+		default:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.5f, false);
+			break;
+		}
+		break;
+	case EQUIPPED_WEAPON_ID::KNIGHT_KILLER:
+		switch (eCurAction)
+		{
+		case CHARACTER_ACTION::SKILL_F:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.5f, false);
+			break;
+
+		default:
+			m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.5f, false);
+			break;
+		}
+		break;
+	default:
+		m_pGameInstance->Play_Sound(TEXT("PC_Hit_Dagger_Strong_1_1_St.wav"), SOUND_CHANNEL::SFX, 0.5f, false);
+		break;
+	}
+
+	pMonster->Take_Damage(m_fSkillColliderDamage);
+}
+
+_bool CPlayer::Is_SkillF_KnightKiller_Start() const
+{
+	if (nullptr == m_pStateMachine)
+		return false;
+
+	return (CHARACTER_ACTION::SKILL_F == m_pStateMachine->Get_CurrentCharacterAction()
+		&& CHARACTER_ACTION_STEP::START == m_pStateMachine->Get_CurrentCharacterStep()
+		&& EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon);
+}
+
+_bool CPlayer::Is_SkillF_KnightKiller_Loop() const
+{
+	if (nullptr == m_pStateMachine)
+		return false;
+
+	return (CHARACTER_ACTION::SKILL_F == m_pStateMachine->Get_CurrentCharacterAction()
+		&& CHARACTER_ACTION_STEP::LOOP == m_pStateMachine->Get_CurrentCharacterStep()
+		&& EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon);
+}
+
+CMonster* CPlayer::Find_Target(_float fSearchRadius, _float fConeAngleDegrees) const
+{
+	if (nullptr == m_pTransformCom || nullptr == m_pGameInstance)
+		return nullptr;
+	if (fSearchRadius <= 0.f)
+		return nullptr;
+
+	const map<const _wstring, CLayer*>* pLayers =
+		m_pGameInstance->Get_Layers(ETOUI(LEVEL::GAMEPLAY));
+	if (nullptr == pLayers)
+		return nullptr;
+
+	auto iterLayer = pLayers->find(TEXT("Layer_Monster"));
+	if (pLayers->end() == iterLayer || nullptr == iterLayer->second)
+		return nullptr;
+
+	const list<CGameObject*>& MonsterObjects = iterLayer->second->Get_GameObjects();
+
+	const _float fSearchRadiusSq = fSearchRadius * fSearchRadius;
+	const _bool  bUseConeFilter = (fConeAngleDegrees < 360.f);
+	const _float fHalfAngleCos = bUseConeFilter
+		? cosf(XMConvertToRadians(fConeAngleDegrees * 0.5f))
+		: -1.f;
+
+	_float3 vPlayerPos = {};
+	XMStoreFloat3(&vPlayerPos, m_pTransformCom->Get_State(STATE::POSITION));
+
+	_float3 vPlayerForward = {};
+	XMStoreFloat3(&vPlayerForward, XMVector3Normalize(
+		XMVectorSetY(m_pTransformCom->Get_State(STATE::LOOK), 0.f)));
+
+	CMonster* pBest = nullptr;
+	_float    fBestDistSq = fSearchRadiusSq;
+
+	for (CGameObject* pObject : MonsterObjects)
+	{
+		CMonster* pMonster = dynamic_cast<CMonster*>(pObject);
+		if (nullptr == pMonster) continue;
+		if (pMonster->Get_CurrentHP() <= 0.f) continue;
+
+		CTransform* pMonsterTransform = pMonster->Get_Transform();
+		if (nullptr == pMonsterTransform) continue;
+
+		_float3 vMonsterPos = {};
+		XMStoreFloat3(&vMonsterPos, pMonsterTransform->Get_State(STATE::POSITION));
+
+		const _float fDX = vMonsterPos.x - vPlayerPos.x;
+		const _float fDZ = vMonsterPos.z - vPlayerPos.z;
+		const _float fDistSq = fDX * fDX + fDZ * fDZ;
+
+		if (fDistSq > fSearchRadiusSq) continue;
+		if (fDistSq < 1e-4f)           continue;
+
+		if (true == bUseConeFilter)
+		{
+			const _float fDist = sqrtf(fDistSq);
+			const _float fDotForward =
+				(fDX * vPlayerForward.x + fDZ * vPlayerForward.z) / fDist;
+
+			if (fDotForward < fHalfAngleCos) continue;
+		}
+
+		if (fDistSq < fBestDistSq)
+		{
+			fBestDistSq = fDistSq;
+			pBest = pMonster;
+		}
+	}
+	return pBest;
+}
+
+void CPlayer::Teleport_BehindTarget(CMonster* pTarget)
+{
+	if (nullptr == pTarget || nullptr == m_pTransformCom)
+		return;
+
+	CTransform* pMonsterTransform = pTarget->Get_Transform();
+	if (nullptr == pMonsterTransform)
+		return;
+
+	_float3 vMonsterPos = {};
+	XMStoreFloat3(&vMonsterPos, pMonsterTransform->Get_State(STATE::POSITION));
+
+	_float3 vMonsterBack = {};
+	XMStoreFloat3(&vMonsterBack, XMVector3Normalize(
+		XMVectorSetY(
+			XMVectorNegate(pMonsterTransform->Get_State(STATE::LOOK)),
+			0.f)));
+
+	constexpr _float EXTRA_OFFSET = 0.5f;
+	const _float fBackDistance =
+		PLAYER_BODY_BLOCK_RADIUS +
+		Get_MonsterBodyBlockRadius(pTarget) +
+		EXTRA_OFFSET;
+
+	const _float3 vBehindPos = {
+		vMonsterPos.x + vMonsterBack.x * fBackDistance,
+		vMonsterPos.y,
+		vMonsterPos.z + vMonsterBack.z * fBackDistance
+	};
+
+	m_pTransformCom->Set_State(STATE::POSITION,
+		XMVectorSet(vBehindPos.x, vBehindPos.y, vBehindPos.z, 1.f));
+
+	_float3 vToMonsterDir = {
+		vMonsterPos.x - vBehindPos.x,
+		0.f,
+		vMonsterPos.z - vBehindPos.z
+	};
+	Face_DirectionImmediately(vToMonsterDir);
+}
+
+void CPlayer::Play_PlayerActionSound(CHARACTER_ACTION eAction, CHARACTER_ACTION_STEP eStep)
+{
+	if (nullptr == m_pGameInstance)
+		return;
+
+	switch (eAction)
+	{
+	case CHARACTER_ACTION::RUN:
+	case CHARACTER_ACTION::RUN_FAST:
+	case CHARACTER_ACTION::RUN_END:
+	case CHARACTER_ACTION::RUN_END_RIGHT:
+	case CHARACTER_ACTION::RUN_END_LEFT:
+	case CHARACTER_ACTION::RUN_FAST_LEFT:
+	case CHARACTER_ACTION::RUN_FAST_RIGHT:
+		break;
+
+	case CHARACTER_ACTION::DASH:
+		m_pGameInstance->Play_Sound(TEXT("SungJinWoo_Dash.wav"), SOUND_CHANNEL::PLAYER, 0.55f, false);
+		break;
+
+	case CHARACTER_ACTION::BACK_DASH:
+		m_pGameInstance->Play_Sound(TEXT("SungJinWoo_BackDash.wav"), SOUND_CHANNEL::PLAYER, 0.55f, false);
+		break;
+
+	case CHARACTER_ACTION::BASIC_ATTACK_01:
+	{
+		m_pGameInstance->Play_Sound(TEXT("Wp_Swish_Dagger_Large_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.42f, false);
+		m_pGameInstance->Play_Sound(TEXT("Wp_Swish_Dagger_Large_2_1_St.wav"), SOUND_CHANNEL::SFX, 0.35f, false);
+		break;
+	}
+
+	case CHARACTER_ACTION::BASIC_ATTACK_02:
+		m_pGameInstance->Play_Sound(TEXT("Wp_Stab_Dagger_Multiple_Large_1_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.45f, false);
+		break;
+
+	case CHARACTER_ACTION::BASIC_ATTACK_03:
+		m_pGameInstance->Play_Sound(TEXT("Wp_Swish_Dagger_Large_5_1_St.wav"), SOUND_CHANNEL::WEAPON, 0.4f, false);
+		break;
+
+	case CHARACTER_ACTION::SKILL_F:
+		if (EQUIPPED_WEAPON_ID::KNIGHT_KILLER == m_eEquippedWeapon)
+		{
+			m_pGameInstance->Play_Sound(TEXT("SungJinWoo_S_GS_KnightKiller_Skill_1-3_St.wav"), SOUND_CHANNEL::SFX, 0.65f, false);
+		}
+		break;
+
+	case CHARACTER_ACTION::SKILL_Q:
+		break;
+
+	case CHARACTER_ACTION::SKILL_E:
+		
+		break;
+
+	case CHARACTER_ACTION::QTE_EXTREME_DASH:
+	{
+		const _tchar* pVoiceKeys[] =
+		{
+			TEXT("Dia_SungJinWooS_QTE_ExtremeDash_Skill_1_1.wav"),
+			TEXT("Dia_SungJinWooS_QTE_ExtremeDash_Skill_1_2.wav"),
+			TEXT("Dia_SungJinWooS_QTE_ExtremeDash_Skill_1_3.wav"),
+		};
+
+		const _uint iIndex = rand() % _countof(pVoiceKeys);
+		m_pGameInstance->Play_Sound(pVoiceKeys[iIndex], SOUND_CHANNEL::PLAYER, 0.85f, false);
+		break;
+	}
+
+	case CHARACTER_ACTION::DAMAGE:
+		m_pGameInstance->Play_Sound(TEXT("PC_Hit_Ashborn_Dagger_Weak_1_3_St.wav"), SOUND_CHANNEL::PLAYER, 0.8f, false);
+		break;
+
+	default:
+		break;
+	}
+}
 CPlayer* CPlayer::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	CPlayer* pInstance = new CPlayer(pDevice, pContext);
@@ -1248,11 +2031,17 @@ void CPlayer::Free()
 
 	if (nullptr != m_pCollider)
 		m_pCollider->Clear_Callbacks();
-
 	Safe_Release(m_pCollider);
+
+	if (nullptr != m_pSkillCollider)
+		m_pSkillCollider->Clear_Callbacks();
+	Safe_Release(m_pSkillCollider);
+
 	Safe_Release(m_pNavigationAgent);
 	Safe_Release(m_pStateMachine);
 	Safe_Release(m_pIntentResolver);
+	Safe_Release(m_pWeaponTrailL);
+	Safe_Release(m_pWeaponTrailR);
 	Safe_Release(m_pWeaponL);
 	Safe_Release(m_pWeaponR);
 	Safe_Release(m_pBody);

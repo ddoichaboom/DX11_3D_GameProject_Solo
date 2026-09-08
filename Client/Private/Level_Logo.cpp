@@ -18,6 +18,7 @@ HRESULT CLevel_Logo::Initialize()
 		return E_FAIL;
 
 	Cache_UIElements();
+    Cache_MenuBtnBaseColors();
 	Enter_Title();
 
     if (CUI_Image* pFade = CFadeOverlay_Helper::Find())
@@ -46,10 +47,6 @@ void CLevel_Logo::Update(_float fTimeDelta)
 
 HRESULT CLevel_Logo::Render()
 {
-#ifdef _DEBUG
-	SetWindowText(m_pGameInstance->Get_hWnd(), TEXT("로고 레벨 입니다."));
-#endif
-
 	return S_OK;
 }
 
@@ -117,6 +114,30 @@ void CLevel_Logo::Cache_UIElements()
     }
 }
 
+void CLevel_Logo::Cache_MenuBtnBaseColors()
+{
+    for (_uint i = 0; i < MENU_ITEM_COUNT; ++i)
+        m_vMenuBtnBaseColor[i] = _float4{ 1.f, 1.f, 1.f, 1.f };
+
+    for (_uint i = 0; i < MENU_ITEM_COUNT; ++i)
+    {
+        MENU_ITEM eItem = static_cast<MENU_ITEM>(i);
+
+        if (CUI_Text* pButton = Get_MenuButton(eItem))
+            m_vMenuBtnBaseColor[i] = pButton->Get_Color();
+    }
+}
+
+_float4 CLevel_Logo::Get_MenuButtonBaseColor(MENU_ITEM eItem) const
+{
+    const _uint iIndex = ETOUI(eItem);
+
+    if (iIndex >= MENU_ITEM_COUNT)
+        return _float4{ 1.f, 1.f, 1.f, 1.f };
+
+    return m_vMenuBtnBaseColor[iIndex];
+}
+
 void CLevel_Logo::Enter_Title()
 {
     m_eState = LOGO_STATE::TITLE;
@@ -124,8 +145,12 @@ void CLevel_Logo::Enter_Title()
     if (m_pPressAnyKey)
     {
         m_pPressAnyKey->Set_Visible(true);
-        m_pPressAnyKey->Set_AlphaPulse(0.5f, 0.f, 1.0f);   // 1.2초 사이클, 30%~100%
+        m_pPressAnyKey->Set_Scale(m_fPressBaseScale);
+        m_pPressAnyKey->Set_Visible(true);
+        m_pPressAnyKey->Set_EffectScale(1.f);
     }
+
+    m_fPressBounceTime = 0.f;
 
     if (m_pBtnStart)     
         m_pBtnStart->Set_Visible(false);
@@ -135,17 +160,26 @@ void CLevel_Logo::Enter_Title()
         m_pBtnQuit->Set_Visible(false);
     if (m_pMenuPanelBg)  
         m_pMenuPanelBg->Set_Visible(false);
+
+    m_pGameInstance->Play_BGM(TEXT("Bgm_Title.wav"), 0.8f, true);
 }
 
 void CLevel_Logo::Enter_Menu()
 {
+    m_pGameInstance->Play_Sound(TEXT("Button_Title.wav"),
+                                 SOUND_CHANNEL::UI,
+                                 1.0f,
+                                 false);
+
     m_eState = LOGO_STATE::MENU;
     m_eHovered = MENU_ITEM::END;
 
     if (m_pPressAnyKey)
     {
         m_pPressAnyKey->Stop_AlphaPulse();
+        m_pPressAnyKey->Set_Scale(m_fPressBaseScale);
         m_pPressAnyKey->Set_Visible(false);
+        m_pPressAnyKey->Set_EffectScale(1.f);
     }
 
     if (m_pBtnStart)     
@@ -160,6 +194,8 @@ void CLevel_Logo::Enter_Menu()
 
 void CLevel_Logo::Update_Title(_float fTimeDelta)
 {
+    Update_PressAnyKeyBounce(fTimeDelta);
+
     // 키보드/마우스 입력으로 MENU 상태 진입
     if (m_pGameInstance->Get_KeyDown(VK_RETURN) ||
         m_pGameInstance->Get_KeyDown(VK_SPACE) ||
@@ -245,24 +281,41 @@ void CLevel_Logo::Set_Hovered(MENU_ITEM eNew)
     if (CUI_Text* pPrev = Get_MenuButton(m_eHovered))
     {
         pPrev->Stop_AlphaPulse();
-        pPrev->Set_Color(_float4{ 1.f, 1.f, 1.f, 1.f });
+        pPrev->Set_Color(Get_MenuButtonBaseColor(m_eHovered));
     }
 
     m_eHovered = eNew;
 
-    // 새 hover 버튼: 펄스 시작
     if (CUI_Text* pNew = Get_MenuButton(m_eHovered))
     {
-        pNew->Set_AlphaPulse(0.75f, 0.3f, 1.0f);   
+        m_pGameInstance->Play_Sound(TEXT("Button_Hovered.wav"), 
+                                    SOUND_CHANNEL::UI,
+                                    0.5f, 
+                                    false);
+
+        _float4 vHoverColor = Get_MenuButtonBaseColor(m_eHovered);
+         
+        vHoverColor.w = 1.f;
+
+        pNew->Set_Color(vHoverColor);
+
+        pNew->Set_AlphaPulse(0.75f, 0.62f, 1.f);
     }
 }
 
 void CLevel_Logo::Dispatch_Action(MENU_ITEM eItem)
 {
+    m_pGameInstance->Play_Sound(TEXT("Button_Enter.wav"),
+        SOUND_CHANNEL::UI,
+        0.6f,
+        false);
+
     switch (eItem)
     {
     case MENU_ITEM::START:
     {
+        m_pGameInstance->Stop_Sound(SOUND_CHANNEL::BGM);
+
         if (CUI_Image* pFade = CFadeOverlay_Helper::Find())
         {
             pFade->Start_Fade(1.f, 0.5f, [this]() {
@@ -292,6 +345,32 @@ void CLevel_Logo::Dispatch_Action(MENU_ITEM eItem)
     default:
         break;
     }
+}
+
+void CLevel_Logo::Update_PressAnyKeyBounce(_float fTimeDelta)
+{
+    if (nullptr == m_pPressAnyKey)
+        return;
+
+    m_fPressBounceTime += fTimeDelta;
+
+    constexpr _float fPeriod = 1.f;       // 한 번 튀는 주기
+    constexpr _float fBounceRatio = 0.34f;  // 주기 중 실제 튀는 구간
+    constexpr _float fAmplitude = 0.045f;   // 최대 4.5% 확대
+
+    _float fPhase = fmodf(m_fPressBounceTime, fPeriod) / fPeriod;
+
+    _float fBounce = 0.f;
+    if (fPhase < fBounceRatio)
+    {
+        const _float fLocal = fPhase / fBounceRatio;
+
+        // 0 -> 1 -> 0
+        fBounce = sinf(fLocal * XM_PI);
+    }
+
+    const _float fEffectScale = 1.f + fAmplitude * fBounce;
+    m_pPressAnyKey->Set_EffectScale(fEffectScale);
 }
 
 CLevel_Logo* CLevel_Logo::Create(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)

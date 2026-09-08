@@ -17,6 +17,7 @@ void CPanel_Manager::Set_ToolMode(EDITOR_TOOL_MODE eMode)
 	m_eToolMode = eMode;
 
 	if (EDITOR_TOOL_MODE::NAVMESH == m_eToolMode ||
+		EDITOR_TOOL_MODE::LIGHT == m_eToolMode ||
 		EDITOR_TOOL_MODE::UI_CANVAS == m_eToolMode)
 		Clear_Selection();
 }
